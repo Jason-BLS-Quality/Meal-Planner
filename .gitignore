@@ -1,0 +1,10 @@
+# Local dev-preview config (machine-specific paths) — not needed on Vercel
+.claude/
+
+# Vercel CLI local state
+.vercel/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
