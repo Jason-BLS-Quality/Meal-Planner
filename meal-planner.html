@@ -183,6 +183,11 @@
   .recipe-ings{margin:0; padding-left:20px} .recipe-ings li{margin:3px 0}
   .recipe-steps{margin:0; padding-left:22px} .recipe-steps li{margin:7px 0; line-height:1.45}
   .recipe-empty{color:var(--muted); font-style:italic}
+  .icon-btn.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+  .sync-code{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:30px; font-weight:700; letter-spacing:4px; text-align:center; background:var(--bg); border:1px dashed var(--accent); border-radius:12px; padding:14px; margin:12px 0; user-select:all}
+  .sync-msg{margin-top:12px; color:var(--accent); font-size:13px}
+  #syncBody p{line-height:1.45}
+  #syncBody input{background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:9px 10px; color:var(--ink)}
 </style>
 </head>
 <body>
@@ -199,6 +204,7 @@
     </div>
     <button class="ghost" id="autoPlan" title="Fill empty slots with random meals">🎲 Auto-plan</button>
     <button class="ghost" id="clearWeek" title="Remove all planned meals">🗑️ Clear</button>
+    <button class="ghost icon-btn" id="syncBtn" title="Sync across devices">🔗</button>
     <button class="ghost icon-btn" id="themeToggle" title="Toggle dark mode">🌙</button>
   </div>
   <nav class="tabs">
@@ -319,6 +325,13 @@
   <div class="modal" role="dialog" aria-modal="true" aria-label="Recipe">
     <button class="modal-close" id="recipeClose" title="Close">✕</button>
     <div id="recipeBody"></div>
+  </div>
+</div>
+<div class="modal-backdrop" id="syncModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Sync across devices">
+    <button class="modal-close" id="syncClose" title="Close">✕</button>
+    <div class="recipe-title">🔗 Sync across devices</div>
+    <div id="syncBody"></div>
   </div>
 </div>
 
@@ -537,6 +550,8 @@ let state=emptyState();
 let selectedMealId=null;
 let targetSlot=null;
 let activeFilter="all";
+let syncCode=null;       // active share code (cloud sync), or null = local-only
+let _pushTimer=null;
 
 function emptyState(){
   const plan={};
@@ -557,6 +572,89 @@ function load(){
 function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
   catch(e){ console.warn("Save failed",e); }
+  pushShared();
+}
+
+/* ---------- Cloud sync (shared via a code; refresh-to-sync) ---------- */
+const SYNC_API="/api/plan";
+function renderAll(){
+  document.getElementById("people").value=state.people;
+  renderLibrary(); renderWeek(); renderShopping(); renderCustomList();
+}
+function setSyncBadge(){
+  const b=document.getElementById("syncBtn"); if(!b) return;
+  b.classList.toggle("on",!!syncCode);
+  b.title=syncCode?("Synced — code "+syncCode):"Sync across devices";
+}
+function genCode(){ return Math.random().toString(36).slice(2,8); }
+function adoptState(data){
+  state=Object.assign(emptyState(),data);
+  DAYS.forEach(d=>{ state.plan[d.k]=Object.assign({breakfast:[],lunch:[],dinner:[],snack:[]}, state.plan[d.k]||{}); });
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
+  renderAll();
+}
+async function pullShared(){
+  if(!syncCode) return "error";
+  try{
+    const r=await fetch(SYNC_API+"?code="+encodeURIComponent(syncCode),{cache:"no-store"});
+    if(!r.ok) return r.status===503?"unconfigured":"error";
+    const out=await r.json();
+    if(out && out.data){ adoptState(out.data); return "ok"; }
+    return "empty";
+  }catch(e){ return "error"; }
+}
+async function pushSharedNow(){
+  if(!syncCode) return "error";
+  try{
+    const r=await fetch(SYNC_API+"?code="+encodeURIComponent(syncCode),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(state)});
+    return r.ok?"ok":(r.status===503?"unconfigured":"error");
+  }catch(e){ return "error"; }
+}
+function pushShared(){
+  if(!syncCode) return;
+  clearTimeout(_pushTimer);
+  _pushTimer=setTimeout(pushSharedNow,1000);
+}
+function openSync(){ renderSync(); document.getElementById("syncModal").classList.add("show"); }
+function closeSync(){ document.getElementById("syncModal").classList.remove("show"); }
+function renderSync(msg){
+  const body=document.getElementById("syncBody");
+  if(syncCode){
+    body.innerHTML=
+      `<p>This device is synced. On your other phone, open the app, tap 🔗 and enter this code:</p>`+
+      `<div class="sync-code">${esc(syncCode)}</div>`+
+      `<div style="display:flex; gap:8px; flex-wrap:wrap"><button class="primary" id="syncCopy">Copy code</button>`+
+      `<button class="ghost" id="syncStop">Stop syncing here</button></div>`+
+      `<p class="recipe-empty" style="margin-top:14px">Your edits save to the cloud; other devices pick them up when they open or refresh the app.</p>`+
+      (msg?`<p class="sync-msg">${esc(msg)}</p>`:"");
+  } else {
+    body.innerHTML=
+      `<p>Share one weekly plan across phones. Create a shared plan here, then enter the same code on your other phone.</p>`+
+      `<button class="primary" id="syncCreate">Create a shared plan</button>`+
+      `<div style="margin:14px 0 8px; color:var(--muted); font-size:13px">— or join an existing one —</div>`+
+      `<div style="display:flex; gap:8px"><input type="text" id="syncCodeInput" placeholder="Enter share code" autocapitalize="off" autocorrect="off" style="flex:1"><button id="syncJoin">Join</button></div>`+
+      `<p class="recipe-empty" style="margin-top:14px">Note: anyone with the code can view and edit this plan.</p>`+
+      (msg?`<p class="sync-msg">${esc(msg)}</p>`:"");
+  }
+}
+async function createShared(){
+  const code=genCode(); syncCode=code;
+  const st=await pushSharedNow();
+  if(st!=="ok"){ syncCode=null; renderSync(st==="unconfigured"?"Sync isn’t connected on the server yet — once the storage is linked, this will work.":"Couldn’t reach the sync server. Try again."); return; }
+  localStorage.setItem("mealplan_code",code); setSyncBadge(); renderSync(); toast("Shared plan created ✓");
+}
+async function joinShared(){
+  const inp=document.getElementById("syncCodeInput");
+  const code=((inp&&inp.value)||"").toLowerCase().replace(/[^a-z0-9-]/g,"").slice(0,32);
+  if(!code){ renderSync("Enter a code to join."); return; }
+  syncCode=code;
+  const st=await pullShared();
+  if(st==="error"||st==="unconfigured"){ syncCode=null; renderSync(st==="unconfigured"?"Sync isn’t connected on the server yet.":"Couldn’t reach the sync server. Try again."); return; }
+  if(st==="empty"){ const ps=await pushSharedNow(); if(ps!=="ok"){ syncCode=null; renderSync("Couldn’t reach the sync server."); return; } }
+  localStorage.setItem("mealplan_code",code); setSyncBadge(); renderSync(); toast("Joined shared plan ✓");
+}
+function stopSync(){
+  syncCode=null; localStorage.removeItem("mealplan_code"); setSyncBadge(); renderSync(); toast("Stopped syncing on this device");
 }
 
 /* ---------- Helpers ---------- */
@@ -913,6 +1011,11 @@ document.addEventListener("DOMContentLoaded",()=>{
   // seed one ingredient row in the form
   document.getElementById("ingRows").innerHTML=ingRowHtml();
 
+  /* restore cloud sync (refresh-to-sync) */
+  syncCode=localStorage.getItem("mealplan_code")||null;
+  setSyncBadge();
+  if(syncCode) pullShared().then(st=>{ if(st==="empty") pushSharedNow(); });
+
   /* Tabs */
   document.querySelector("nav.tabs").addEventListener("click",e=>{
     const b=e.target.closest("button[data-tab]"); if(b) switchTab(b.dataset.tab);
@@ -996,16 +1099,31 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.getElementById("hintCancel").addEventListener("click",clearSelection);
   document.addEventListener("keydown",e=>{
     if(e.key!=="Escape") return;
-    if(document.getElementById("recipeModal").classList.contains("show")) closeRecipe();
+    if(document.getElementById("syncModal").classList.contains("show")) closeSync();
+    else if(document.getElementById("recipeModal").classList.contains("show")) closeRecipe();
     else clearSelection();
   });
   /* Recipe modal close (button + tap outside) */
   document.getElementById("recipeClose").addEventListener("click",closeRecipe);
   document.getElementById("recipeModal").addEventListener("click",e=>{ if(e.target.id==="recipeModal") closeRecipe(); });
-  /* Auto-refresh: reload when a newer deploy is detected */
+  /* Sync modal */
+  document.getElementById("syncBtn").addEventListener("click",openSync);
+  document.getElementById("syncClose").addEventListener("click",closeSync);
+  document.getElementById("syncModal").addEventListener("click",e=>{ if(e.target.id==="syncModal") closeSync(); });
+  document.getElementById("syncBody").addEventListener("click",e=>{
+    if(e.target.id==="syncCreate") createShared();
+    else if(e.target.id==="syncJoin") joinShared();
+    else if(e.target.id==="syncStop") stopSync();
+    else if(e.target.id==="syncCopy"){ navigator.clipboard.writeText(syncCode).then(()=>toast("Code copied 📋"),()=>{}); }
+  });
+  document.getElementById("syncBody").addEventListener("keydown",e=>{ if(e.key==="Enter"&&e.target.id==="syncCodeInput") joinShared(); });
+  /* Auto-refresh + pull shared plan when the tab regains focus */
   checkUpdate();
   setInterval(checkUpdate,60000);
-  document.addEventListener("visibilitychange",()=>{ if(!document.hidden) checkUpdate(); });
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden){ if(syncCode){ clearTimeout(_pushTimer); pushSharedNow(); } }
+    else { checkUpdate(); pullShared(); }
+  });
 
   /* Shopping interactions */
   const shopBody=document.getElementById("shopBody");
