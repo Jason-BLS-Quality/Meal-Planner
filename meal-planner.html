@@ -741,7 +741,7 @@ function selectMeal(id){
 }
 function targetSlotMode(day,slot){
   clearSelection();
-  targetSlot={day,slot};
+  targetSlot={day,slot,returnY:window.scrollY};
   activeFilter=slot;
   document.querySelectorAll("#libFilters .chip").forEach(x=>x.classList.toggle("active",x.dataset.type===slot));
   renderLibrary();
@@ -843,9 +843,8 @@ document.addEventListener("DOMContentLoaded",()=>{
       placeMeal(t.day,t.slot,card.dataset.id); renderShopping();
       clearSelection();
       toast("Added "+(m?m.name:"meal"));
-      if(window.matchMedia("(max-width:860px)").matches){
-        const sEl=document.querySelector('.slot[data-day="'+t.day+'"][data-slot="'+t.slot+'"]');
-        (sEl?sEl.closest(".day"):document.getElementById("week")).scrollIntoView({behavior:"smooth",block:"start"});
+      if(window.matchMedia("(max-width:860px)").matches && typeof t.returnY==="number"){
+        window.scrollTo({top:t.returnY,behavior:"smooth"});
       }
       return;
     }
