@@ -3,8 +3,9 @@
 // Until a KV store is connected (env vars below), this responds 503 and the app
 // simply treats sync as unavailable.
 
-const BASE = process.env.KV_REST_API_URL;
-const TOKEN = process.env.KV_REST_API_TOKEN;
+// Accept either Vercel KV or Upstash-for-Redis env var names.
+const BASE = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
 
 async function redis(cmd) {
   const r = await fetch(BASE, {
