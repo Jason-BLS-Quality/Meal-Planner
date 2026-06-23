@@ -60,7 +60,7 @@
 
   /* PLAN layout */
   .plan-grid{display:grid; grid-template-columns:300px 1fr; gap:18px; align-items:start}
-  @media(max-width:860px){ .plan-grid{grid-template-columns:1fr} }
+  @media(max-width:860px){ .plan-grid{grid-template-columns:1fr} .week{order:1} .sidebar{order:2} }
 
   .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow)}
   .sidebar{position:sticky; top:118px; max-height:calc(100vh - 140px); display:flex; flex-direction:column; overflow:hidden}
@@ -101,6 +101,7 @@
   .slot{border:1.5px dashed var(--line); border-radius:10px; padding:8px; min-height:74px; transition:.12s}
   .slot:hover{border-color:var(--accent)}
   .slot.dragover{border-color:var(--accent); border-style:solid; background:color-mix(in srgb,var(--accent) 8%,transparent)}
+  .slot.targeting{border-color:var(--accent); border-style:solid; background:color-mix(in srgb,var(--accent) 12%,transparent)}
   .slot .slabel{font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:5px}
   .slot .slabel .dot{width:8px; height:8px; border-radius:50%; background:var(--type)}
   .slot.empty .slabel{opacity:.7}
@@ -462,6 +463,7 @@ const STORE_KEY="bls_meal_planner_v1";
 /* ---------- State ---------- */
 let state=emptyState();
 let selectedMealId=null;
+let targetSlot=null;
 let activeFilter="all";
 
 function emptyState(){
@@ -719,8 +721,10 @@ function removeMeal(day,slot,idx){
 }
 function clearSelection(){
   selectedMealId=null;
+  targetSlot=null;
   document.getElementById("hint").classList.remove("show");
   document.querySelectorAll(".meal-card.selected").forEach(c=>c.classList.remove("selected"));
+  document.querySelectorAll(".slot.targeting").forEach(s=>s.classList.remove("targeting"));
 }
 function toggleFav(id){
   if(state.favourites[id]) delete state.favourites[id]; else state.favourites[id]=true;
@@ -734,6 +738,22 @@ function selectMeal(id){
   const hint=document.getElementById("hint");
   document.getElementById("hintText").innerHTML=`Placing <b>${esc(m.name)}</b> — click a day slot`;
   hint.classList.add("show");
+}
+function targetSlotMode(day,slot){
+  clearSelection();
+  targetSlot={day,slot};
+  activeFilter=slot;
+  document.querySelectorAll("#libFilters .chip").forEach(x=>x.classList.toggle("active",x.dataset.type===slot));
+  renderLibrary();
+  const el=document.querySelector('.slot[data-day="'+day+'"][data-slot="'+slot+'"]');
+  if(el) el.classList.add("targeting");
+  const dl=(DAYS.find(d=>d.k===day)||{}).l||day;
+  const sl=(SLOTS.find(s=>s.k===slot)||{}).l||slot;
+  document.getElementById("hintText").innerHTML=`Pick a <b>${esc(sl)}</b> for <b>${esc(dl)}</b> — now tap a meal`;
+  document.getElementById("hint").classList.add("show");
+  if(window.matchMedia("(max-width:860px)").matches){
+    document.querySelector(".sidebar").scrollIntoView({behavior:"smooth",block:"start"});
+  }
 }
 function toast(msg){
   const t=document.getElementById("toast");
@@ -817,7 +837,19 @@ document.addEventListener("DOMContentLoaded",()=>{
   lib.addEventListener("click",e=>{
     const star=e.target.closest(".fav");
     if(star){ toggleFav(star.dataset.fav); return; }
-    const card=e.target.closest(".meal-card"); if(card) selectMeal(card.dataset.id);
+    const card=e.target.closest(".meal-card"); if(!card) return;
+    if(targetSlot){
+      const t=targetSlot, m=mealById(card.dataset.id);
+      placeMeal(t.day,t.slot,card.dataset.id); renderShopping();
+      clearSelection();
+      toast("Added "+(m?m.name:"meal"));
+      if(window.matchMedia("(max-width:860px)").matches){
+        const sEl=document.querySelector('.slot[data-day="'+t.day+'"][data-slot="'+t.slot+'"]');
+        (sEl?sEl.closest(".day"):document.getElementById("week")).scrollIntoView({behavior:"smooth",block:"start"});
+      }
+      return;
+    }
+    selectMeal(card.dataset.id);
   });
   lib.addEventListener("dragstart",e=>{
     const card=e.target.closest(".meal-card"); if(!card) return;
@@ -844,7 +876,9 @@ document.addEventListener("DOMContentLoaded",()=>{
     const x=e.target.closest(".x");
     if(x){ removeMeal(x.dataset.day,x.dataset.slot,Number(x.dataset.idx)); renderShopping(); return; }
     const slot=e.target.closest(".slot");
-    if(slot && selectedMealId){ placeMeal(slot.dataset.day,slot.dataset.slot,selectedMealId); }
+    if(!slot) return;
+    if(selectedMealId){ placeMeal(slot.dataset.day,slot.dataset.slot,selectedMealId); renderShopping(); return; }
+    targetSlotMode(slot.dataset.day,slot.dataset.slot);
   });
   document.getElementById("hintCancel").addEventListener("click",clearSelection);
   document.addEventListener("keydown",e=>{ if(e.key==="Escape") clearSelection(); });
