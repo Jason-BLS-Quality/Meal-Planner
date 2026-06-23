@@ -105,7 +105,8 @@
   .slot .slabel{font-size:10.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); font-weight:700; margin-bottom:6px; display:flex; align-items:center; gap:5px}
   .slot .slabel .dot{width:8px; height:8px; border-radius:50%; background:var(--type)}
   .slot.empty .slabel{opacity:.7}
-  .chip-meal{display:flex; align-items:center; gap:6px; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:5px 6px; margin-bottom:5px; font-size:13px}
+  .chip-meal{display:flex; align-items:center; gap:6px; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:5px 6px; margin-bottom:5px; font-size:13px; cursor:pointer}
+  .chip-meal:hover{border-color:var(--accent)}
   .chip-meal .cm-emoji{font-size:14px}
   .chip-meal .cm-name{flex:1; line-height:1.2}
   .chip-meal .x{cursor:pointer; color:var(--muted); font-weight:700; padding:0 3px; border-radius:5px}
@@ -170,6 +171,18 @@
     .shop-cols{column-width:240px}
     .item input{ -webkit-print-color-adjust:exact }
   }
+  /* Recipe modal */
+  .modal-backdrop{position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:100; padding:16px}
+  .modal-backdrop.show{display:flex}
+  .modal{background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:16px; max-width:460px; width:100%; max-height:86vh; overflow-y:auto; padding:20px 22px; box-shadow:var(--shadow); position:relative}
+  .modal-close{position:absolute; top:12px; right:12px; border:1px solid var(--line); background:var(--bg); border-radius:8px; width:30px; height:30px; cursor:pointer; font-size:13px; color:var(--ink)}
+  .modal-close:hover{border-color:var(--accent)}
+  .recipe-title{display:flex; align-items:center; gap:10px; font-size:20px; font-weight:700; margin:0 34px 2px 0; letter-spacing:-.2px}
+  .recipe-sub{color:var(--muted); font-size:12.5px; margin-bottom:14px; text-transform:capitalize}
+  .recipe-h{font-size:12px; text-transform:uppercase; letter-spacing:.6px; color:var(--accent); font-weight:700; margin:16px 0 6px}
+  .recipe-ings{margin:0; padding-left:20px} .recipe-ings li{margin:3px 0}
+  .recipe-steps{margin:0; padding-left:22px} .recipe-steps li{margin:7px 0; line-height:1.45}
+  .recipe-empty{color:var(--muted); font-style:italic}
 </style>
 </head>
 <body>
@@ -280,6 +293,10 @@
           <tbody id="ingRows"></tbody>
         </table>
         <button id="addIng" class="ghost">+ Add ingredient</button>
+        <div class="field" style="margin-top:14px">
+          <label>Instructions (one step per line)</label>
+          <textarea id="mfInstr" rows="4" placeholder="One step per line, e.g.&#10;Boil the pasta&#10;Brown the mince with onion&#10;Stir in the sauce and simmer" style="width:100%; resize:vertical; font:inherit; background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:8px 9px; color:var(--ink); box-sizing:border-box"></textarea>
+        </div>
         <div style="margin-top:14px; display:flex; gap:8px">
           <button class="primary" id="saveMeal">Save meal</button>
           <button class="ghost" id="resetMeal">Reset</button>
@@ -298,6 +315,12 @@
   <button id="hintCancel">Cancel</button>
 </div>
 <div class="toast" id="toast"></div>
+<div class="modal-backdrop" id="recipeModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Recipe">
+    <button class="modal-close" id="recipeClose" title="Close">✕</button>
+    <div id="recipeBody"></div>
+  </div>
+</div>
 
 <script>
 "use strict";
@@ -451,6 +474,55 @@ const LIBRARY = [
 ];
 
 /* ---------- Constants ---------- */
+/* Simple cooking steps for the built-in meals (steps separated by | ). Custom meals carry their own .instr */
+const INSTRUCTIONS={
+  b1:"Combine the oats and milk in a small pot|Simmer 4–5 min, stirring, until creamy|Drizzle with honey and serve",
+  b2:"Whisk the eggs with a splash of milk|Toast and butter the bread|Gently scramble the eggs in a buttered pan over low heat|Pile onto the toast",
+  b3:"Spoon the yoghurt into a bowl|Top with granola|Drizzle with honey",
+  b4:"Toast the bread|Mash the avocado with a squeeze of lemon|Spread over the toast|Sprinkle with chilli flakes",
+  b5:"Whisk the flour, eggs and milk into a smooth batter|Cook spoonfuls in a hot non-stick pan, flipping when bubbles appear|Serve with maple syrup",
+  b6:"Heat the beans in a pot or microwave|Toast and butter the bread|Tip the beans over the toast",
+  b7:"Boil the eggs 5–6 min for runny yolks|Toast and butter the bread, then cut into strips|Serve the eggs in cups for dipping",
+  b8:"Toast the bread|Spread with butter, then jam",
+  l1:"Cook and slice the chicken|Chop the lettuce|Toss with the dressing, croutons and parmesan|Top with the chicken",
+  l2:"Soften the chopped onion and garlic in a pot|Add the tomatoes and stock, simmer 15 min|Blend until smooth|Serve with crusty bread",
+  l3:"Boil the pasta until tender, then drain|Mix with the drained tuna, sweetcorn and mayo|Season and serve",
+  l4:"Slice and fry the halloumi until golden|Slice the peppers|Spread hummus on the wraps, add halloumi and peppers|Roll up",
+  l5:"Bake the potatoes until soft (microwave first to speed it up)|Heat the beans|Split the potato and add butter, beans and grated cheese",
+  l6:"Butter the bread|Layer the ham and cheese|Close and cut",
+  l7:"Butter the bread on the outside|Fill with cheese|Toast in a pan until golden on both sides",
+  l8:"Cook the rice (or use leftover)|Scramble the eggs in a hot pan, push to one side|Add the rice, peas and soy sauce and stir-fry|Stir through the spring onion",
+  l9:"Soften the chopped onion and carrot|Add the lentils, stock and a little water|Simmer 20–25 min until soft|Blend for a smooth soup if you like",
+  l10:"Boil the pasta, then drain (save a splash of the water)|Stir through the pesto, loosening with the pasta water|Top with parmesan",
+  l11:"Warm the pitta|Slice the cucumber|Serve the pitta with hummus and cucumber for dipping",
+  d1:"Brown the mince in a pan|Add the chopped onion, garlic and carrot and soften|Stir in the tomatoes and simmer 20 min|Boil the spaghetti and serve the sauce on top",
+  d2:"Slice and stir-fry the chicken until cooked through|Add the veg and grated ginger, stir-fry|Add the cooked noodles and soy sauce|Toss and serve",
+  d3:"Spread the passata over the base|Top with torn mozzarella|Bake hot (220°C) for 10–12 min|Scatter with basil",
+  d4:"Boil the potatoes and steam the broccoli|Pan-fry or bake the salmon with oil and lemon, about 12 min|Serve together",
+  d5:"Brown the mince, then stir in the beans and salsa|Warm the taco shells|Fill with mince, cheese and lettuce",
+  d6:"Fry the onion with the curry paste|Add the chickpeas and coconut milk, simmer 10 min|Stir in the spinach until wilted|Serve with rice",
+  d7:"Roast the chicken at 200°C (about 20 min per 500g) until the juices run clear|Roast chopped potatoes alongside|Boil the carrots and peas|Make the gravy and serve",
+  d8:"Bake the chips and cod per the packet|Boil the peas|Serve with tartare sauce",
+  d9:"Brown the mince with the onion|Stir in the chilli powder, tomatoes and beans|Simmer 20 min|Serve with rice",
+  d10:"Grill or fry the sausages|Boil and mash the potatoes with a knob of butter|Fry the sliced onion and make the gravy|Serve together",
+  d11:"Soften the onion and garlic|Add the tomatoes, simmer 15 min and season|Boil the pasta and stir through the sauce",
+  d12:"Bake the potatoes until soft|Mix the tuna, sweetcorn and mayo|Split the potato and pile on the filling",
+  d13:"Stir-fry the garlic and veg in a hot pan|Add the cooked noodles and soy sauce|Toss and serve",
+  d14:"Whisk the eggs and pour into a hot buttered pan|As it sets, add cheese and sliced tomato|Fold over and slide out",
+  d15:"Fry the onion with the curry paste|Add the lentils, coconut milk and a little water|Simmer about 20 min until soft|Serve with rice",
+  d16:"Fry the onion with the chilli powder|Add the tomatoes and beans, simmer 15 min|Serve with rice",
+  d17:"Bake the fish fingers and chips per the packet|Heat the beans|Serve",
+  d18:"Boil the macaroni|Melt the butter, stir in the flour, then whisk in the milk to a smooth sauce|Stir in the cheese until melted|Mix through the macaroni (grill the top if you like)",
+  d19:"Fry the sausages and slice|Boil the pasta|Mix with the tomatoes and sausage in a dish, top with cheese|Bake at 200°C for about 20 min",
+  s1:"Cut the carrots into sticks|Serve with the hummus for dipping",
+  s2:"Slice the cheese|Serve on the crackers",
+  s4:"Spoon the yoghurt into pots — done",
+  s5:"Toast the bread|Spread with peanut butter",
+  s6:"Pop the popcorn per the packet|Tip into a bowl",
+  s7:"Toast the crumpets|Spread with butter while warm",
+  s8:"Cut the celery into sticks|Fill the grooves with peanut butter"
+};
+
 const DAYS=[{k:"mon",l:"Monday"},{k:"tue",l:"Tuesday"},{k:"wed",l:"Wednesday"},{k:"thu",l:"Thursday"},
   {k:"fri",l:"Friday"},{k:"sat",l:"Saturday"},{k:"sun",l:"Sunday"}];
 const SLOTS=[{k:"breakfast",l:"Breakfast"},{k:"lunch",l:"Lunch"},{k:"dinner",l:"Dinner"},{k:"snack",l:"Snacks"}];
@@ -602,7 +674,7 @@ function renderWeek(){
       const chips=ids.map((id,idx)=>{
         const m=mealById(id);
         if(!m) return "";
-        return `<div class="chip-meal"><span class="cm-emoji">${m.emoji||"🍽️"}</span>
+        return `<div class="chip-meal" data-id="${id}" title="Tap for recipe"><span class="cm-emoji">${m.emoji||"🍽️"}</span>
           <span class="cm-name">${esc(m.name)}</span>
           <span class="x" data-day="${d.k}" data-slot="${s.k}" data-idx="${idx}" title="Remove">✕</span></div>`;
       }).join("");
@@ -761,6 +833,46 @@ function toast(msg){
   setTimeout(()=>t.classList.remove("show"),1800);
 }
 
+/* ---------- Recipe popup ---------- */
+function recipeSteps(m){
+  const raw=(m.instr||INSTRUCTIONS[m.id]||"").trim();
+  return raw ? raw.split(/\||\n/).map(s=>s.trim()).filter(Boolean) : [];
+}
+function openRecipe(id){
+  const m=mealById(id); if(!m) return;
+  const ings=m.ingredients.map(i=>`<li>${esc(lineText(i))}</li>`).join("");
+  const steps=recipeSteps(m);
+  const stepHtml=steps.length
+    ? `<ol class="recipe-steps">${steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`
+    : `<p class="recipe-empty">No instructions yet — you can add some under “My Meals”.</p>`;
+  document.getElementById("recipeBody").innerHTML=
+    `<div class="recipe-title">${m.emoji||"🍽️"} ${esc(m.name)}</div>`+
+    `<div class="recipe-sub">${esc(m.type)} · serves ${m.serves}</div>`+
+    `<div class="recipe-h">🛒 Ingredients</div>`+
+    `<ul class="recipe-ings">${ings}</ul>`+
+    `<div class="recipe-h">👩‍🍳 Method</div>`+
+    stepHtml;
+  document.getElementById("recipeModal").classList.add("show");
+}
+function closeRecipe(){ document.getElementById("recipeModal").classList.remove("show"); }
+
+/* ---------- Auto-refresh when a new version is deployed (hosted only) ---------- */
+let _appVer=null, _updateNoticed=false;
+async function checkUpdate(){
+  if(!/^https?:$/.test(location.protocol)) return;   // skip local file:// use
+  try{
+    const r=await fetch(location.pathname, {method:"HEAD", cache:"no-store"});
+    const tag=r.headers.get("etag")||r.headers.get("last-modified");
+    if(!tag) return;
+    if(_appVer===null){ _appVer=tag; return; }
+    if(tag!==_appVer && !_updateNoticed){
+      _updateNoticed=true;
+      toast("🔄 New version — updating…");
+      setTimeout(()=>location.reload(), 1200);
+    }
+  }catch(e){}
+}
+
 /* ---------- Auto-plan ---------- */
 function autoPlan(){
   const byType={breakfast:[],lunch:[],dinner:[],snack:[]};
@@ -874,13 +986,26 @@ document.addEventListener("DOMContentLoaded",()=>{
   week.addEventListener("click",e=>{
     const x=e.target.closest(".x");
     if(x){ removeMeal(x.dataset.day,x.dataset.slot,Number(x.dataset.idx)); renderShopping(); return; }
+    const chip=e.target.closest(".chip-meal");
+    if(chip){ openRecipe(chip.dataset.id); return; }
     const slot=e.target.closest(".slot");
     if(!slot) return;
     if(selectedMealId){ placeMeal(slot.dataset.day,slot.dataset.slot,selectedMealId); renderShopping(); return; }
     targetSlotMode(slot.dataset.day,slot.dataset.slot);
   });
   document.getElementById("hintCancel").addEventListener("click",clearSelection);
-  document.addEventListener("keydown",e=>{ if(e.key==="Escape") clearSelection(); });
+  document.addEventListener("keydown",e=>{
+    if(e.key!=="Escape") return;
+    if(document.getElementById("recipeModal").classList.contains("show")) closeRecipe();
+    else clearSelection();
+  });
+  /* Recipe modal close (button + tap outside) */
+  document.getElementById("recipeClose").addEventListener("click",closeRecipe);
+  document.getElementById("recipeModal").addEventListener("click",e=>{ if(e.target.id==="recipeModal") closeRecipe(); });
+  /* Auto-refresh: reload when a newer deploy is detected */
+  checkUpdate();
+  setInterval(checkUpdate,60000);
+  document.addEventListener("visibilitychange",()=>{ if(!document.hidden) checkUpdate(); });
 
   /* Shopping interactions */
   const shopBody=document.getElementById("shopBody");
@@ -947,6 +1072,7 @@ function resetMealForm(){
   document.getElementById("mfEmoji").value="";
   document.getElementById("mfServes").value="2";
   document.getElementById("mfType").value="dinner";
+  document.getElementById("mfInstr").value="";
   document.getElementById("ingRows").innerHTML=ingRowHtml();
 }
 function saveMeal(){
@@ -960,10 +1086,11 @@ function saveMeal(){
       unit:tr.querySelector(".ing-unit").value, cat:tr.querySelector(".ing-cat").value});
   });
   if(!ings.length){ toast("Add at least one ingredient"); return; }
+  const instr=document.getElementById("mfInstr").value.split("\n").map(s=>s.trim()).filter(Boolean).join("|");
   const meal={id:"c"+Date.now()+Math.floor(Math.random()*1000), custom:true,
     name, emoji:document.getElementById("mfEmoji").value.trim()||"🍽️",
     type:document.getElementById("mfType").value,
-    serves:Number(document.getElementById("mfServes").value)||2, ingredients:ings};
+    serves:Number(document.getElementById("mfServes").value)||2, ingredients:ings, instr:instr};
   state.custom.push(meal); save();
   resetMealForm(); renderCustomList(); renderLibrary();
   toast("Saved — it's now in your library ✓");
