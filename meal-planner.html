@@ -186,6 +186,9 @@
   .icon-btn.on{background:var(--accent); color:#fff; border-color:var(--accent)}
   .sync-code{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:30px; font-weight:700; letter-spacing:4px; text-align:center; background:var(--bg); border:1px dashed var(--accent); border-radius:12px; padding:14px; margin:12px 0; user-select:all}
   .sync-msg{margin-top:12px; color:var(--accent); font-size:13px}
+  .ptotal{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:12px; padding:12px 16px; margin-bottom:14px}
+  .ptotal b{color:var(--accent); font-size:22px; letter-spacing:-.5px}
+  .ptotal span{display:block; color:var(--muted); font-size:12px; margin-top:2px}
   #syncBody p{line-height:1.45}
   #syncBody input{background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:9px 10px; color:var(--ink)}
 </style>
@@ -536,6 +539,18 @@ const INSTRUCTIONS={
   s8:"Cut the celery into sticks|Fill the grooves with peanut butter"
 };
 
+/* Rough Woolworths (AU) shelf-price estimates, in $ per the unit each ingredient uses
+   (per g / per each / per tin / per tbsp …). Meal cost = sum(qty × price). Estimates only —
+   real prices change weekly and vary by store. Staples (meat/dairy) calibrated to ~current Woolworths. */
+const PRICES={
+  "Bread":0.18,"Crackers":3.0,"Croutons":0.03,"Crumpets":3.0,"Crusty bread":3.5,"Pitta bread":3.0,"Pizza base":1.5,"Taco shells":3.5,"Tortilla wraps":3.5,
+  "Butter":0.02,"Cheddar":0.014,"Eggs":0.46,"Greek yoghurt":0.006,"Halloumi":6.0,"Milk":0.00155,"Mozzarella":4.5,"Parmesan":0.04,"Yoghurt":1.1,
+  "Fish fingers":5.0,"Oven chips":4.0,"Peas":0.0035,
+  "Avocado":1.5,"Baking potato":0.8,"Broccoli":2.5,"Carrot":0.3,"Celery":1.0,"Cucumber":1.5,"Fresh basil":3.0,"Garlic":0.1,"Ginger":0.5,"Lemon":0.8,"Lettuce":3.0,"New potatoes":0.004,"Onion":0.5,"Peppers":1.5,"Potatoes":0.003,"Romaine lettuce":2.5,"Spinach":0.015,"Spring onion":0.28,"Stir-fry vegetables":0.008,"Tomatoes":0.7,
+  "Beef mince":0.011,"Chicken breast":2.4,"Cod":3.5,"Ham":0.3,"Salmon":5.5,"Sausages":6.0,"Whole chicken":12.0,
+  "Baked beans":1.3,"Caesar dressing":0.22,"Chickpeas":1.1,"Chilli flakes":0.07,"Chilli powder":0.13,"Coconut milk":1.5,"Curry paste":0.25,"Egg noodles":0.008,"Granola":0.01,"Gravy granules":2.5,"Honey":0.17,"Hummus":4.0,"Jam":0.15,"Kidney beans":1.1,"Macaroni":0.003,"Maple syrup":0.3,"Mayonnaise":0.14,"Olive oil":0.16,"Passata":0.002,"Pasta":0.003,"Peanut butter":0.13,"Pesto":0.29,"Plain flour":0.002,"Popcorn":2.0,"Porridge oats":0.0027,"Red lentils":0.006,"Rice":0.002,"Salsa":3.0,"Soy sauce":0.1,"Spaghetti":0.003,"Sweetcorn":1.3,"Tartare sauce":3.0,"Tinned tomatoes":1.1,"Tinned tuna":1.5,"Vegetable stock cube":0.3
+};
+
 const DAYS=[{k:"mon",l:"Monday"},{k:"tue",l:"Tuesday"},{k:"wed",l:"Wednesday"},{k:"thu",l:"Thursday"},
   {k:"fri",l:"Friday"},{k:"sat",l:"Saturday"},{k:"sun",l:"Sunday"}];
 const SLOTS=[{k:"breakfast",l:"Breakfast"},{k:"lunch",l:"Lunch"},{k:"dinner",l:"Dinner"},{k:"snack",l:"Snacks"}];
@@ -660,6 +675,15 @@ function stopSync(){
 /* ---------- Helpers ---------- */
 function allMeals(){ return LIBRARY.concat(state.custom); }
 function mealById(id){ return allMeals().find(m=>m.id===id); }
+function mealCost(m){ return (m&&m.ingredients)?m.ingredients.reduce((s,i)=>s+(PRICES[i.name]||0)*(i.qty||0),0):0; }
+function weeklyCost(){
+  let t=0;
+  for(const d of DAYS) for(const s of SLOTS) for(const id of (state.plan[d.k][s.k]||[])){
+    const m=mealById(id); if(m) t+=mealCost(m)*(state.people/(m.serves||2));
+  }
+  return t;
+}
+function fmtMoney(n){ return "$"+(n>=100?Math.round(n).toString():n.toFixed(2)); }
 function typeColor(t){ return t==="breakfast"?"var(--b)":t==="lunch"?"var(--l)":t==="dinner"?"var(--d)":"var(--s)"; }
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function formatNum(n){
@@ -743,7 +767,7 @@ function renderLibrary(){
         <span class="name">${esc(m.name)}</span>
         <span class="fav${isFav?' on':''}" data-fav="${m.id}" title="${isFav?'Unpin':'Pin to top'}">${isFav?'★':'☆'}</span>
         <span class="badge">${m.type}</span></div>
-      <div class="meta">${m.ingredients.length} ingredients · serves ${m.serves}${isCustom?' · <span class="custom-tag">yours</span>':''}</div>
+      <div class="meta">~${fmtMoney(mealCost(m))} · ${m.ingredients.length} ingredients · serves ${m.serves}${isCustom?' · <span class="custom-tag">yours</span>':''}</div>
     </div>`;
   }).join("");
 }
@@ -820,6 +844,9 @@ function shopMetaHtml(items){
   const wd=weekDates(); const f=new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short"});
   return `w/c ${f.format(wd.mon)} · ${items.length} items · ${mealCount} meals · for ${state.people} ${state.people==1?'person':'people'} · <b>${ticked}</b> ticked`;
 }
+function shopTotalHtml(){
+  return `<div class="ptotal">💰 Estimated cost <b>~${fmtMoney(weeklyCost())}</b><span>for ${state.people} ${state.people==1?'person':'people'} this week · rough Woolworths prices for ingredients used</span></div>`;
+}
 function renderShopping(){
   const items=buildList();
   const meta=document.getElementById("shopMeta");
@@ -839,7 +866,7 @@ function renderShopping(){
   const byCat={};
   items.forEach(i=>{ (byCat[i.cat]=byCat[i.cat]||[]).push(i); });
   const cats=Object.keys(byCat).sort((a,b)=>CAT_ORDER.indexOf(a)-CAT_ORDER.indexOf(b));
-  body.innerHTML='<div class="shop-cols">'+cats.map(cat=>{
+  body.innerHTML=shopTotalHtml()+'<div class="shop-cols">'+cats.map(cat=>{
     const list=byCat[cat].sort((a,b)=>a.name.localeCompare(b.name));
     return `<div class="panel cat-block"><h3>${CAT_EMOJI[cat]||"📦"} ${esc(cat)} <span class="n">(${list.length})</span></h3>
       ${list.map(i=>{
@@ -945,7 +972,7 @@ function openRecipe(id){
     : `<p class="recipe-empty">No instructions yet — you can add some under “My Meals”.</p>`;
   document.getElementById("recipeBody").innerHTML=
     `<div class="recipe-title">${m.emoji||"🍽️"} ${esc(m.name)}</div>`+
-    `<div class="recipe-sub">${esc(m.type)} · serves ${m.serves}</div>`+
+    `<div class="recipe-sub">${esc(m.type)} · serves ${m.serves} · approx ~${fmtMoney(mealCost(m))}</div>`+
     `<div class="recipe-h">🛒 Ingredients</div>`+
     `<ul class="recipe-ings">${ings}</ul>`+
     `<div class="recipe-h">👩‍🍳 Method</div>`+
