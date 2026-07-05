@@ -184,6 +184,8 @@
   .recipe-steps{margin:0; padding-left:22px} .recipe-steps li{margin:7px 0; line-height:1.45}
   .recipe-empty{color:var(--muted); font-style:italic}
   .icon-btn.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+  @keyframes mp-spin{to{transform:rotate(360deg)}}
+  .icon-btn.spin{animation:mp-spin .6s linear infinite}
   .sync-code{font-family:ui-monospace,Menlo,Consolas,monospace; font-size:30px; font-weight:700; letter-spacing:4px; text-align:center; background:var(--bg); border:1px dashed var(--accent); border-radius:12px; padding:14px; margin:12px 0; user-select:all}
   .sync-msg{margin-top:12px; color:var(--accent); font-size:13px}
   .ptotal{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:12px; padding:12px 16px; margin-bottom:14px}
@@ -207,6 +209,7 @@
     </div>
     <button class="ghost" id="autoPlan" title="Fill empty slots with random meals">🎲 Auto-plan</button>
     <button class="ghost" id="clearWeek" title="Remove all planned meals">🗑️ Clear</button>
+    <button class="ghost icon-btn" id="refreshBtn" title="Sync now — pull the latest shared plan" style="display:none">🔄</button>
     <button class="ghost icon-btn" id="syncBtn" title="Sync across devices">🔗</button>
     <button class="ghost icon-btn" id="themeToggle" title="Toggle dark mode">🌙</button>
   </div>
@@ -597,9 +600,10 @@ function renderAll(){
   renderLibrary(); renderWeek(); renderShopping(); renderCustomList();
 }
 function setSyncBadge(){
-  const b=document.getElementById("syncBtn"); if(!b) return;
-  b.classList.toggle("on",!!syncCode);
-  b.title=syncCode?("Synced — code "+syncCode):"Sync across devices";
+  const b=document.getElementById("syncBtn");
+  if(b){ b.classList.toggle("on",!!syncCode); b.title=syncCode?("Synced — code "+syncCode):"Sync across devices"; }
+  const r=document.getElementById("refreshBtn");
+  if(r) r.style.display=syncCode?"":"none";
 }
 function genCode(){ return Math.random().toString(36).slice(2,8); }
 function adoptState(data){
@@ -1135,6 +1139,13 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.getElementById("recipeModal").addEventListener("click",e=>{ if(e.target.id==="recipeModal") closeRecipe(); });
   /* Sync modal */
   document.getElementById("syncBtn").addEventListener("click",openSync);
+  document.getElementById("refreshBtn").addEventListener("click",async()=>{
+    if(!syncCode){ toast("Not synced — tap 🔗 to join a plan"); return; }
+    const r=document.getElementById("refreshBtn"); r.classList.add("spin");
+    const st=await pullShared();
+    r.classList.remove("spin");
+    toast(st==="ok"?"🔄 Synced — latest plan loaded":st==="empty"?"Shared plan is empty":"Couldn’t reach the sync server");
+  });
   document.getElementById("syncClose").addEventListener("click",closeSync);
   document.getElementById("syncModal").addEventListener("click",e=>{ if(e.target.id==="syncModal") closeSync(); });
   document.getElementById("syncBody").addEventListener("click",e=>{
