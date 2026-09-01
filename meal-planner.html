@@ -235,6 +235,11 @@
             <span class="chip" data-type="dinner">Dinner</span>
             <span class="chip" data-type="snack">Snacks</span>
           </div>
+          <select id="cuisineFilter" title="Filter by cuisine" style="width:100%; margin-bottom:12px">
+            <option value="all">🌍 All cuisines</option>
+            <option>Italian</option><option>Asian</option><option>Indian</option><option>Mexican</option>
+            <option>Mediterranean</option><option>British</option><option>American</option><option>Comfort</option>
+          </select>
         </div>
         <div class="cards" id="library"></div>
       </aside>
@@ -475,6 +480,159 @@ const LIBRARY = [
   {id:"d19",name:"Sausage Pasta Bake",emoji:"🍝",type:"dinner",serves:4,ingredients:[
     {name:"Sausages",qty:1,unit:"pack",cat:"Meat & Seafood"},{name:"Pasta",qty:300,unit:"g",cat:"Pantry"},
     {name:"Tinned tomatoes",qty:1,unit:"tin",cat:"Pantry"},{name:"Cheddar",qty:80,unit:"g",cat:"Dairy & Eggs"}]},
+  // DINNER — Italian
+  {id:"d20",name:"Creamy Chicken Alfredo",emoji:"🍝",type:"dinner",cuisine:"Italian",serves:4,ingredients:[
+    {name:"Chicken breast",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Fettuccine",qty:300,unit:"g",cat:"Pantry"},
+    {name:"Cream",qty:300,unit:"ml",cat:"Dairy & Eggs"},{name:"Parmesan",qty:50,unit:"g",cat:"Dairy & Eggs"},
+    {name:"Garlic",qty:2,unit:"clove",cat:"Fruit & Veg"},{name:"Butter",qty:20,unit:"g",cat:"Dairy & Eggs"}],
+    instr:"Cook the fettuccine|Fry the sliced chicken until golden|Add garlic, cream and butter and simmer|Stir in parmesan and toss with the pasta"},
+  {id:"d21",name:"Beef Lasagne",emoji:"🍝",type:"dinner",cuisine:"Italian",serves:4,ingredients:[
+    {name:"Beef mince",qty:500,unit:"g",cat:"Meat & Seafood"},{name:"Lasagne sheets",qty:1,unit:"pack",cat:"Pantry"},
+    {name:"Tinned tomatoes",qty:2,unit:"tin",cat:"Pantry"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},
+    {name:"Garlic",qty:2,unit:"clove",cat:"Fruit & Veg"},{name:"Cheddar",qty:100,unit:"g",cat:"Dairy & Eggs"},
+    {name:"Milk",qty:400,unit:"ml",cat:"Dairy & Eggs"},{name:"Butter",qty:30,unit:"g",cat:"Dairy & Eggs"},{name:"Plain flour",qty:30,unit:"g",cat:"Pantry"}],
+    instr:"Brown the mince with onion and garlic, add tomatoes and simmer 15 min|Make a white sauce with the butter, flour and milk|Layer mince, lasagne sheets and white sauce|Top with cheese and bake 200°C for 35 min"},
+  {id:"d22",name:"Mushroom Risotto",emoji:"🍚",type:"dinner",cuisine:"Italian",serves:4,ingredients:[
+    {name:"Arborio rice",qty:300,unit:"g",cat:"Pantry"},{name:"Mushrooms",qty:250,unit:"g",cat:"Fruit & Veg"},
+    {name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Garlic",qty:2,unit:"clove",cat:"Fruit & Veg"},
+    {name:"Vegetable stock cube",qty:2,unit:"",cat:"Pantry"},{name:"Parmesan",qty:50,unit:"g",cat:"Dairy & Eggs"},{name:"Butter",qty:30,unit:"g",cat:"Dairy & Eggs"}],
+    instr:"Fry the onion, garlic and mushrooms|Add the rice and toast for a minute|Add stock a ladle at a time, stirring, for ~20 min|Stir through the parmesan and butter"},
+  {id:"d23",name:"Chicken Parmigiana",emoji:"🍗",type:"dinner",cuisine:"Italian",serves:2,ingredients:[
+    {name:"Chicken breast",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Breadcrumbs",qty:100,unit:"g",cat:"Pantry"},
+    {name:"Eggs",qty:1,unit:"",cat:"Dairy & Eggs"},{name:"Passata",qty:200,unit:"ml",cat:"Pantry"},
+    {name:"Mozzarella",qty:1,unit:"pack",cat:"Dairy & Eggs"},{name:"Parmesan",qty:30,unit:"g",cat:"Dairy & Eggs"}],
+    instr:"Flatten the chicken, coat in beaten egg then breadcrumbs|Fry until golden|Top with passata and torn mozzarella|Bake 200°C for 15 min and finish with parmesan"},
+  {id:"d24",name:"Spaghetti Carbonara",emoji:"🍝",type:"dinner",cuisine:"Italian",serves:2,ingredients:[
+    {name:"Spaghetti",qty:250,unit:"g",cat:"Pantry"},{name:"Bacon",qty:150,unit:"g",cat:"Meat & Seafood"},
+    {name:"Eggs",qty:3,unit:"",cat:"Dairy & Eggs"},{name:"Parmesan",qty:50,unit:"g",cat:"Dairy & Eggs"},{name:"Garlic",qty:1,unit:"clove",cat:"Fruit & Veg"}],
+    instr:"Cook the spaghetti|Fry the bacon with the garlic|Mix the eggs and parmesan|Toss hot pasta with the bacon, then the egg mix off the heat so it stays creamy"},
+  // DINNER — Asian
+  {id:"d25",name:"Beef & Broccoli Stir-Fry",emoji:"🥢",type:"dinner",cuisine:"Asian",serves:2,ingredients:[
+    {name:"Beef strips",qty:400,unit:"g",cat:"Meat & Seafood"},{name:"Broccoli",qty:1,unit:"",cat:"Fruit & Veg"},
+    {name:"Soy sauce",qty:3,unit:"tbsp",cat:"Pantry"},{name:"Oyster sauce",qty:2,unit:"tbsp",cat:"Pantry"},
+    {name:"Garlic",qty:2,unit:"clove",cat:"Fruit & Veg"},{name:"Ginger",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Rice",qty:250,unit:"g",cat:"Pantry"}],
+    instr:"Stir-fry the beef until browned|Add the broccoli, garlic and ginger|Add the soy and oyster sauce|Serve over rice"},
+  {id:"d26",name:"Chicken Chow Mein",emoji:"🍜",type:"dinner",cuisine:"Asian",serves:3,ingredients:[
+    {name:"Chicken breast",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Egg noodles",qty:300,unit:"g",cat:"Pantry"},
+    {name:"Stir-fry vegetables",qty:400,unit:"g",cat:"Fruit & Veg"},{name:"Soy sauce",qty:3,unit:"tbsp",cat:"Pantry"},
+    {name:"Garlic",qty:2,unit:"clove",cat:"Fruit & Veg"},{name:"Sesame oil",qty:1,unit:"tbsp",cat:"Pantry"}],
+    instr:"Cook the noodles|Stir-fry the sliced chicken|Add the veg and garlic|Toss with the noodles, soy sauce and sesame oil"},
+  {id:"d27",name:"Thai Green Chicken Curry",emoji:"🍛",type:"dinner",cuisine:"Asian",serves:4,ingredients:[
+    {name:"Chicken thigh",qty:500,unit:"g",cat:"Meat & Seafood"},{name:"Curry paste",qty:3,unit:"tbsp",cat:"Pantry"},
+    {name:"Coconut milk",qty:1,unit:"tin",cat:"Pantry"},{name:"Green beans",qty:150,unit:"g",cat:"Fruit & Veg"},
+    {name:"Fish sauce",qty:1,unit:"tbsp",cat:"Pantry"},{name:"Rice",qty:250,unit:"g",cat:"Pantry"}],
+    instr:"Fry the curry paste for a minute|Add the chicken and brown|Add coconut milk and green beans, simmer 15 min|Finish with fish sauce and serve with rice"},
+  {id:"d28",name:"Sweet & Sour Pork",emoji:"🍍",type:"dinner",cuisine:"Asian",serves:3,ingredients:[
+    {name:"Pork",qty:400,unit:"g",cat:"Meat & Seafood"},{name:"Peppers",qty:2,unit:"",cat:"Fruit & Veg"},
+    {name:"Pineapple",qty:1,unit:"tin",cat:"Pantry"},{name:"Sweet & sour sauce",qty:1,unit:"jar",cat:"Pantry"},{name:"Rice",qty:250,unit:"g",cat:"Pantry"}],
+    instr:"Fry the pork until golden|Add the peppers|Stir in the sauce and pineapple and simmer|Serve with rice"},
+  {id:"d29",name:"Teriyaki Salmon",emoji:"🍣",type:"dinner",cuisine:"Asian",serves:2,ingredients:[
+    {name:"Salmon",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Teriyaki sauce",qty:4,unit:"tbsp",cat:"Pantry"},
+    {name:"Rice",qty:250,unit:"g",cat:"Pantry"},{name:"Broccoli",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Sesame seeds",qty:1,unit:"tsp",cat:"Pantry"}],
+    instr:"Pan-fry the salmon|Glaze with the teriyaki sauce|Steam the broccoli and cook the rice|Serve topped with sesame seeds"},
+  {id:"d30",name:"Singapore Noodles",emoji:"🍜",type:"dinner",cuisine:"Asian",serves:3,ingredients:[
+    {name:"Rice noodles",qty:250,unit:"g",cat:"Pantry"},{name:"Prawns",qty:200,unit:"g",cat:"Meat & Seafood"},
+    {name:"Curry powder",qty:1,unit:"tbsp",cat:"Pantry"},{name:"Stir-fry vegetables",qty:300,unit:"g",cat:"Fruit & Veg"},
+    {name:"Soy sauce",qty:2,unit:"tbsp",cat:"Pantry"},{name:"Eggs",qty:2,unit:"",cat:"Dairy & Eggs"}],
+    instr:"Soak the rice noodles|Stir-fry the prawns and veg|Add noodles, curry powder and soy sauce|Push aside, scramble the egg, then mix through"},
+  // DINNER — Indian
+  {id:"d31",name:"Chicken Tikka Masala",emoji:"🍛",type:"dinner",cuisine:"Indian",serves:4,ingredients:[
+    {name:"Chicken thigh",qty:500,unit:"g",cat:"Meat & Seafood"},{name:"Curry paste",qty:4,unit:"tbsp",cat:"Pantry"},
+    {name:"Passata",qty:400,unit:"ml",cat:"Pantry"},{name:"Cream",qty:100,unit:"ml",cat:"Dairy & Eggs"},
+    {name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Rice",qty:250,unit:"g",cat:"Pantry"}],
+    instr:"Fry the onion and curry paste|Add the chicken and brown|Add passata and simmer 20 min|Stir in the cream and serve with rice"},
+  {id:"d32",name:"Butter Chicken",emoji:"🍛",type:"dinner",cuisine:"Indian",serves:4,ingredients:[
+    {name:"Chicken thigh",qty:500,unit:"g",cat:"Meat & Seafood"},{name:"Butter",qty:40,unit:"g",cat:"Dairy & Eggs"},
+    {name:"Passata",qty:300,unit:"ml",cat:"Pantry"},{name:"Cream",qty:150,unit:"ml",cat:"Dairy & Eggs"},
+    {name:"Garam masala",qty:1,unit:"tbsp",cat:"Pantry"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Rice",qty:250,unit:"g",cat:"Pantry"}],
+    instr:"Fry the onion in butter with the garam masala|Add the chicken and brown|Add passata and simmer 15 min|Stir in the cream and serve with rice"},
+  {id:"d33",name:"Chana Masala",emoji:"🌱",type:"dinner",cuisine:"Indian",serves:4,ingredients:[
+    {name:"Chickpeas",qty:2,unit:"tin",cat:"Pantry"},{name:"Tinned tomatoes",qty:1,unit:"tin",cat:"Pantry"},
+    {name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Garlic",qty:2,unit:"clove",cat:"Fruit & Veg"},
+    {name:"Garam masala",qty:1,unit:"tbsp",cat:"Pantry"},{name:"Rice",qty:250,unit:"g",cat:"Pantry"}],
+    instr:"Fry the onion and garlic|Add the garam masala, chickpeas and tomatoes|Simmer 15 min|Serve with rice"},
+  {id:"d34",name:"Lamb Rogan Josh",emoji:"🍛",type:"dinner",cuisine:"Indian",serves:4,ingredients:[
+    {name:"Lamb",qty:500,unit:"g",cat:"Meat & Seafood"},{name:"Onion",qty:2,unit:"",cat:"Fruit & Veg"},
+    {name:"Curry paste",qty:4,unit:"tbsp",cat:"Pantry"},{name:"Tinned tomatoes",qty:1,unit:"tin",cat:"Pantry"},
+    {name:"Greek yoghurt",qty:100,unit:"g",cat:"Dairy & Eggs"},{name:"Rice",qty:250,unit:"g",cat:"Pantry"}],
+    instr:"Brown the diced lamb|Fry the onions and curry paste|Add the tomatoes and simmer 40 min until tender|Stir in the yoghurt and serve with rice"},
+  // DINNER — Mexican
+  {id:"d35",name:"Chicken Fajitas",emoji:"🌮",type:"dinner",cuisine:"Mexican",serves:3,ingredients:[
+    {name:"Chicken breast",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Peppers",qty:2,unit:"",cat:"Fruit & Veg"},
+    {name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Tortilla wraps",qty:1,unit:"pack",cat:"Bakery"},
+    {name:"Fajita seasoning",qty:1,unit:"pack",cat:"Pantry"},{name:"Salsa",qty:1,unit:"jar",cat:"Pantry"}],
+    instr:"Slice and fry the chicken with the seasoning|Add the peppers and onion|Warm the wraps|Fill with chicken, peppers and salsa"},
+  {id:"d36",name:"Beef Enchiladas",emoji:"🌯",type:"dinner",cuisine:"Mexican",serves:4,ingredients:[
+    {name:"Beef mince",qty:500,unit:"g",cat:"Meat & Seafood"},{name:"Tortilla wraps",qty:1,unit:"pack",cat:"Bakery"},
+    {name:"Kidney beans",qty:1,unit:"tin",cat:"Pantry"},{name:"Passata",qty:300,unit:"ml",cat:"Pantry"},
+    {name:"Cheddar",qty:100,unit:"g",cat:"Dairy & Eggs"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Chilli powder",qty:1,unit:"tbsp",cat:"Pantry"}],
+    instr:"Brown the mince with onion, beans and chilli|Roll into the wraps and place in a dish|Top with passata and cheese|Bake 200°C for 20 min"},
+  {id:"d37",name:"Loaded Beef Nachos",emoji:"🧀",type:"dinner",cuisine:"Mexican",serves:3,ingredients:[
+    {name:"Tortilla chips",qty:1,unit:"pack",cat:"Pantry"},{name:"Beef mince",qty:400,unit:"g",cat:"Meat & Seafood"},
+    {name:"Kidney beans",qty:1,unit:"tin",cat:"Pantry"},{name:"Cheddar",qty:100,unit:"g",cat:"Dairy & Eggs"},
+    {name:"Salsa",qty:1,unit:"jar",cat:"Pantry"},{name:"Avocado",qty:1,unit:"",cat:"Fruit & Veg"}],
+    instr:"Brown the mince with the beans|Spread chips on a tray and top with mince and cheese|Grill until the cheese melts|Top with salsa and sliced avocado"},
+  // DINNER — Mediterranean
+  {id:"d38",name:"Greek Lamb Gyros",emoji:"🥙",type:"dinner",cuisine:"Mediterranean",serves:3,ingredients:[
+    {name:"Lamb",qty:400,unit:"g",cat:"Meat & Seafood"},{name:"Pitta bread",qty:1,unit:"pack",cat:"Bakery"},
+    {name:"Greek yoghurt",qty:150,unit:"g",cat:"Dairy & Eggs"},{name:"Cucumber",qty:1,unit:"",cat:"Fruit & Veg"},
+    {name:"Tomatoes",qty:2,unit:"",cat:"Fruit & Veg"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"}],
+    instr:"Season and fry the lamb|Make tzatziki with the yoghurt and grated cucumber|Warm the pittas|Fill with lamb, salad and tzatziki"},
+  {id:"d39",name:"Halloumi & Veg Traybake",emoji:"🧀",type:"dinner",cuisine:"Mediterranean",serves:2,ingredients:[
+    {name:"Halloumi",qty:1,unit:"pack",cat:"Dairy & Eggs"},{name:"Peppers",qty:2,unit:"",cat:"Fruit & Veg"},
+    {name:"Courgette",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Cherry tomatoes",qty:200,unit:"g",cat:"Fruit & Veg"},
+    {name:"Olive oil",qty:2,unit:"tbsp",cat:"Pantry"},{name:"Cous cous",qty:150,unit:"g",cat:"Pantry"}],
+    instr:"Chop the veg, toss with oil and roast 25 min|Add sliced halloumi and roast 10 min more|Prepare the cous cous|Serve together"},
+  {id:"d40",name:"Greek Salad & Chicken",emoji:"🥗",type:"dinner",cuisine:"Mediterranean",serves:2,ingredients:[
+    {name:"Chicken breast",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Feta",qty:100,unit:"g",cat:"Dairy & Eggs"},
+    {name:"Cucumber",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Tomatoes",qty:3,unit:"",cat:"Fruit & Veg"},
+    {name:"Olives",qty:50,unit:"g",cat:"Pantry"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Olive oil",qty:2,unit:"tbsp",cat:"Pantry"}],
+    instr:"Grill the chicken and slice|Chop the cucumber, tomato and onion|Add the olives and crumbled feta|Dress with olive oil and top with the chicken"},
+  // DINNER — British
+  {id:"d41",name:"Cottage Pie",emoji:"🥧",type:"dinner",cuisine:"British",serves:4,ingredients:[
+    {name:"Beef mince",qty:500,unit:"g",cat:"Meat & Seafood"},{name:"Potatoes",qty:800,unit:"g",cat:"Fruit & Veg"},
+    {name:"Carrot",qty:2,unit:"",cat:"Fruit & Veg"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},
+    {name:"Peas",qty:100,unit:"g",cat:"Frozen"},{name:"Gravy granules",qty:1,unit:"pack",cat:"Pantry"},{name:"Butter",qty:30,unit:"g",cat:"Dairy & Eggs"}],
+    instr:"Brown the mince with onion and carrot|Add gravy and peas and simmer|Boil and mash the potatoes with butter|Top the mince and bake 200°C for 25 min"},
+  {id:"d42",name:"Toad in the Hole",emoji:"🌭",type:"dinner",cuisine:"British",serves:4,ingredients:[
+    {name:"Sausages",qty:1,unit:"pack",cat:"Meat & Seafood"},{name:"Plain flour",qty:150,unit:"g",cat:"Pantry"},
+    {name:"Eggs",qty:3,unit:"",cat:"Dairy & Eggs"},{name:"Milk",qty:300,unit:"ml",cat:"Dairy & Eggs"},{name:"Gravy granules",qty:1,unit:"pack",cat:"Pantry"}],
+    instr:"Make a batter with the flour, eggs and milk|Brown the sausages in a hot tin with a little oil|Pour the batter over and bake 220°C for 30 min|Serve with gravy"},
+  {id:"d43",name:"Creamy Fish Pie",emoji:"🐟",type:"dinner",cuisine:"British",serves:4,ingredients:[
+    {name:"Cod",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Potatoes",qty:800,unit:"g",cat:"Fruit & Veg"},
+    {name:"Milk",qty:400,unit:"ml",cat:"Dairy & Eggs"},{name:"Butter",qty:40,unit:"g",cat:"Dairy & Eggs"},
+    {name:"Plain flour",qty:30,unit:"g",cat:"Pantry"},{name:"Peas",qty:100,unit:"g",cat:"Frozen"},{name:"Cheddar",qty:80,unit:"g",cat:"Dairy & Eggs"}],
+    instr:"Poach the fish in the milk, then flake|Make a sauce with that milk, the butter and flour|Mix fish, peas and sauce in a dish|Top with mash and cheese and bake 200°C for 25 min"},
+  // DINNER — American
+  {id:"d44",name:"Homemade Beef Burgers",emoji:"🍔",type:"dinner",cuisine:"American",serves:4,ingredients:[
+    {name:"Beef mince",qty:500,unit:"g",cat:"Meat & Seafood"},{name:"Burger buns",qty:1,unit:"pack",cat:"Bakery"},
+    {name:"Cheddar",qty:80,unit:"g",cat:"Dairy & Eggs"},{name:"Lettuce",qty:1,unit:"",cat:"Fruit & Veg"},
+    {name:"Tomatoes",qty:2,unit:"",cat:"Fruit & Veg"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"}],
+    instr:"Shape the mince into patties and season|Fry ~4 min each side|Toast the buns|Build with cheese, lettuce, tomato and onion"},
+  {id:"d45",name:"BBQ Pulled Pork",emoji:"🍖",type:"dinner",cuisine:"American",serves:4,ingredients:[
+    {name:"Pork",qty:800,unit:"g",cat:"Meat & Seafood"},{name:"BBQ sauce",qty:1,unit:"jar",cat:"Pantry"},
+    {name:"Burger buns",qty:1,unit:"pack",cat:"Bakery"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Coleslaw",qty:1,unit:"pack",cat:"Fruit & Veg"}],
+    instr:"Slow-cook the pork with the onion for 3–4 hrs until it shreds|Mix through the BBQ sauce|Toast the buns|Pile in the pork with coleslaw"},
+  {id:"d46",name:"Buffalo Chicken Wraps",emoji:"🌯",type:"dinner",cuisine:"American",serves:3,ingredients:[
+    {name:"Chicken breast",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Tortilla wraps",qty:1,unit:"pack",cat:"Bakery"},
+    {name:"Hot sauce",qty:3,unit:"tbsp",cat:"Pantry"},{name:"Lettuce",qty:1,unit:"",cat:"Fruit & Veg"},
+    {name:"Cheddar",qty:60,unit:"g",cat:"Dairy & Eggs"},{name:"Mayonnaise",qty:3,unit:"tbsp",cat:"Pantry"}],
+    instr:"Fry the chicken and toss in the hot sauce|Warm the wraps|Fill with chicken, lettuce, cheese and a little mayo|Roll up"},
+  // DINNER — Comfort
+  {id:"d47",name:"Sausage & Bean Casserole",emoji:"🍲",type:"dinner",cuisine:"Comfort",serves:4,ingredients:[
+    {name:"Sausages",qty:1,unit:"pack",cat:"Meat & Seafood"},{name:"Baked beans",qty:2,unit:"tin",cat:"Pantry"},
+    {name:"Tinned tomatoes",qty:1,unit:"tin",cat:"Pantry"},{name:"Onion",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Peppers",qty:1,unit:"",cat:"Fruit & Veg"}],
+    instr:"Brown the sausages and slice|Fry the onion and pepper|Add the beans and tomatoes and simmer 20 min|Lovely with crusty bread"},
+  {id:"d48",name:"Jacket Potato & Chilli",emoji:"🥔",type:"dinner",cuisine:"Comfort",serves:2,ingredients:[
+    {name:"Baking potato",qty:2,unit:"",cat:"Fruit & Veg"},{name:"Beef mince",qty:300,unit:"g",cat:"Meat & Seafood"},
+    {name:"Kidney beans",qty:1,unit:"tin",cat:"Pantry"},{name:"Tinned tomatoes",qty:1,unit:"tin",cat:"Pantry"},
+    {name:"Chilli powder",qty:1,unit:"tbsp",cat:"Pantry"},{name:"Cheddar",qty:60,unit:"g",cat:"Dairy & Eggs"}],
+    instr:"Bake the potatoes until soft|Brown the mince with beans, tomatoes and chilli|Split the potatoes|Top with chilli and grated cheese"},
+  {id:"d49",name:"Creamy Tomato Gnocchi",emoji:"🥘",type:"dinner",cuisine:"Comfort",serves:2,ingredients:[
+    {name:"Gnocchi",qty:500,unit:"g",cat:"Pantry"},{name:"Passata",qty:300,unit:"ml",cat:"Pantry"},
+    {name:"Cream",qty:100,unit:"ml",cat:"Dairy & Eggs"},{name:"Garlic",qty:2,unit:"clove",cat:"Fruit & Veg"},
+    {name:"Spinach",qty:100,unit:"g",cat:"Fruit & Veg"},{name:"Parmesan",qty:30,unit:"g",cat:"Dairy & Eggs"}],
+    instr:"Fry the garlic|Add the passata and cream and simmer|Boil the gnocchi|Toss with the sauce and spinach, top with parmesan"},
   // SNACK
   {id:"s1",name:"Hummus & Carrots",emoji:"🥕",type:"snack",serves:2,ingredients:[
     {name:"Hummus",qty:1,unit:"pack",cat:"Pantry"},{name:"Carrot",qty:4,unit:"",cat:"Fruit & Veg"}]},
@@ -551,7 +709,14 @@ const PRICES={
   "Fish fingers":5.0,"Oven chips":4.0,"Peas":0.0035,
   "Avocado":1.5,"Baking potato":0.8,"Broccoli":2.5,"Carrot":0.3,"Celery":1.0,"Cucumber":1.5,"Fresh basil":3.0,"Garlic":0.1,"Ginger":0.5,"Lemon":0.8,"Lettuce":3.0,"New potatoes":0.004,"Onion":0.5,"Peppers":1.5,"Potatoes":0.003,"Romaine lettuce":2.5,"Spinach":0.015,"Spring onion":0.28,"Stir-fry vegetables":0.008,"Tomatoes":0.7,
   "Beef mince":0.011,"Chicken breast":2.4,"Cod":3.5,"Ham":0.3,"Salmon":5.5,"Sausages":6.0,"Whole chicken":12.0,
-  "Baked beans":1.3,"Caesar dressing":0.22,"Chickpeas":1.1,"Chilli flakes":0.07,"Chilli powder":0.13,"Coconut milk":1.5,"Curry paste":0.25,"Egg noodles":0.008,"Granola":0.01,"Gravy granules":2.5,"Honey":0.17,"Hummus":4.0,"Jam":0.15,"Kidney beans":1.1,"Macaroni":0.003,"Maple syrup":0.3,"Mayonnaise":0.14,"Olive oil":0.16,"Passata":0.002,"Pasta":0.003,"Peanut butter":0.13,"Pesto":0.29,"Plain flour":0.002,"Popcorn":2.0,"Porridge oats":0.0027,"Red lentils":0.006,"Rice":0.002,"Salsa":3.0,"Soy sauce":0.1,"Spaghetti":0.003,"Sweetcorn":1.3,"Tartare sauce":3.0,"Tinned tomatoes":1.1,"Tinned tuna":1.5,"Vegetable stock cube":0.3
+  "Baked beans":1.3,"Caesar dressing":0.22,"Chickpeas":1.1,"Chilli flakes":0.07,"Chilli powder":0.13,"Coconut milk":1.5,"Curry paste":0.25,"Egg noodles":0.008,"Granola":0.01,"Gravy granules":2.5,"Honey":0.17,"Hummus":4.0,"Jam":0.15,"Kidney beans":1.1,"Macaroni":0.003,"Maple syrup":0.3,"Mayonnaise":0.14,"Olive oil":0.16,"Passata":0.002,"Pasta":0.003,"Peanut butter":0.13,"Pesto":0.29,"Plain flour":0.002,"Popcorn":2.0,"Porridge oats":0.0027,"Red lentils":0.006,"Rice":0.002,"Salsa":3.0,"Soy sauce":0.1,"Spaghetti":0.003,"Sweetcorn":1.3,"Tartare sauce":3.0,"Tinned tomatoes":1.1,"Tinned tuna":1.5,"Vegetable stock cube":0.3,
+  "Fettuccine":0.003,"Cream":0.007,"Lasagne sheets":2.5,"Arborio rice":0.008,"Mushrooms":0.008,"Breadcrumbs":0.01,"Bacon":0.012,"Beef strips":0.014,"Oyster sauce":0.10,"Sesame oil":0.10,"Chicken thigh":0.009,"Green beans":0.009,"Fish sauce":0.08,"Pork":0.01,"Pineapple":1.5,"Sweet & sour sauce":3.0,"Teriyaki sauce":0.14,"Sesame seeds":0.05,"Rice noodles":0.01,"Prawns":0.025,"Curry powder":0.13,"Garam masala":0.13,"Lamb":0.016,"Fajita seasoning":1.5,"Tortilla chips":3.0,"Courgette":1.0,"Cherry tomatoes":0.014,"Cous cous":0.005,"Feta":0.025,"Olives":0.015,"Burger buns":2.5,"BBQ sauce":3.0,"Coleslaw":3.0,"Hot sauce":0.08,"Gnocchi":0.004
+};
+
+/* Cuisine tags for the built-in DINNERS (new dinners carry .cuisine on the object). */
+const CUISINE={
+  d1:"Italian",d2:"Asian",d3:"Italian",d4:"British",d5:"Mexican",d6:"Indian",d7:"British",d8:"British",d9:"Mexican",d10:"British",
+  d11:"Italian",d12:"Comfort",d13:"Asian",d14:"Comfort",d15:"Indian",d16:"Mexican",d17:"British",d18:"American",d19:"Italian"
 };
 
 const DAYS=[{k:"mon",l:"Monday"},{k:"tue",l:"Tuesday"},{k:"wed",l:"Wednesday"},{k:"thu",l:"Thursday"},
@@ -568,6 +733,7 @@ let state=emptyState();
 let selectedMealId=null;
 let targetSlot=null;
 let activeFilter="all";
+let activeCuisine="all";
 let syncCode=null;       // active share code (cloud sync), or null = local-only
 let _pushTimer=null;
 
@@ -688,6 +854,7 @@ function weeklyCost(){
   return t;
 }
 function fmtMoney(n){ return "$"+(n>=100?Math.round(n).toString():n.toFixed(2)); }
+function mealCuisine(m){ return (m&&m.cuisine) || (m&&CUISINE[m.id]) || ""; }
 function typeColor(t){ return t==="breakfast"?"var(--b)":t==="lunch"?"var(--l)":t==="dinner"?"var(--d)":"var(--s)"; }
 function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function formatNum(n){
@@ -755,6 +922,7 @@ function renderLibrary(){
   const box=document.getElementById("library");
   let meals=allMeals().filter(m=>{
     if(activeFilter!=="all" && m.type!==activeFilter) return false;
+    if(activeCuisine!=="all" && mealCuisine(m)!==activeCuisine) return false;
     if(!q) return true;
     if(m.name.toLowerCase().includes(q)) return true;
     return m.ingredients.some(i=>i.name.toLowerCase().includes(q));
@@ -976,7 +1144,7 @@ function openRecipe(id){
     : `<p class="recipe-empty">No instructions yet — you can add some under “My Meals”.</p>`;
   document.getElementById("recipeBody").innerHTML=
     `<div class="recipe-title">${m.emoji||"🍽️"} ${esc(m.name)}</div>`+
-    `<div class="recipe-sub">${esc(m.type)} · serves ${m.serves} · approx ~${fmtMoney(mealCost(m))}</div>`+
+    `<div class="recipe-sub">${esc(m.type)}${mealCuisine(m)?' · '+esc(mealCuisine(m)):''} · serves ${m.serves} · approx ~${fmtMoney(mealCost(m))}</div>`+
     `<div class="recipe-h">🛒 Ingredients</div>`+
     `<ul class="recipe-ings">${ings}</ul>`+
     `<div class="recipe-h">👩‍🍳 Method</div>`+
@@ -1077,6 +1245,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     document.querySelectorAll("#libFilters .chip").forEach(x=>x.classList.toggle("active",x===c));
     renderLibrary();
   });
+  document.getElementById("cuisineFilter").addEventListener("change",e=>{ activeCuisine=e.target.value; renderLibrary(); });
 
   /* Library: select + drag */
   const lib=document.getElementById("library");
