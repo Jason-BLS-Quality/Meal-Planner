@@ -44,10 +44,11 @@
   button.ghost{background:transparent}
   .icon-btn{padding:8px 10px}
 
-  nav.tabs{display:flex; gap:4px; padding:0 18px}
+  nav.tabs{display:flex; gap:4px; padding:0 18px; overflow-x:auto; scrollbar-width:none}
+  nav.tabs::-webkit-scrollbar{display:none}
   nav.tabs button{
     border:none; background:none; border-bottom:2px solid transparent; border-radius:0;
-    padding:11px 14px; color:var(--muted); font-weight:600; font-size:14px;
+    padding:11px 14px; color:var(--muted); font-weight:600; font-size:14px; white-space:nowrap; flex:0 0 auto;
   }
   nav.tabs button:hover{color:var(--ink)}
   nav.tabs button.active{color:var(--accent); border-bottom-color:var(--accent)}
@@ -71,6 +72,7 @@
   .chip{font-size:12px; padding:5px 10px; border-radius:20px; border:1px solid var(--line); background:var(--bg); color:var(--muted); cursor:pointer}
   .chip.active{background:var(--ink); color:var(--bg); border-color:var(--ink)}
   #libSearch{width:100%}
+  .use-hint{color:var(--muted); font-size:13px; margin:8px 0 4px}
   .cards{overflow-y:auto; padding:6px 14px 14px; display:flex; flex-direction:column; gap:8px}
 
   .meal-card{
@@ -220,6 +222,7 @@
     <button data-tab="plan" class="active">📅 Plan</button>
     <button data-tab="shopping">🛒 Shopping List<span class="pill" id="shopCount" style="display:none">0</span></button>
     <button data-tab="meals">📖 My Meals</button>
+    <button data-tab="useitup">🍳 Use It Up</button>
   </nav>
 </header>
 
@@ -326,6 +329,28 @@
         <h2>Your saved meals</h2>
         <div id="customList"></div>
       </div>
+    </div>
+  </section>
+
+  <!-- USE IT UP -->
+  <section id="view-useitup" class="view">
+    <div class="panel" style="padding:16px; max-width:640px; margin:0 auto">
+      <h2 style="margin:0 0 4px">🍳 Use It Up</h2>
+      <p style="margin:0 0 12px; color:var(--muted); font-size:13px">Got leftovers? Type an ingredient you already have and see which meals it fits into.</p>
+      <input type="text" id="useSearch" placeholder="e.g. chicken, mince, rice…" style="width:100%; box-sizing:border-box">
+      <div class="filters" id="useChips" style="margin:12px 0 4px">
+        <span class="chip" data-use="Chicken">Chicken</span>
+        <span class="chip" data-use="Mince">Mince</span>
+        <span class="chip" data-use="Sausages">Sausages</span>
+        <span class="chip" data-use="Rice">Rice</span>
+        <span class="chip" data-use="Pasta">Pasta</span>
+        <span class="chip" data-use="Potato">Potato</span>
+        <span class="chip" data-use="Cheddar">Cheese</span>
+        <span class="chip" data-use="Eggs">Eggs</span>
+        <span class="chip" data-use="Beans">Beans</span>
+        <span class="chip" data-use="Tomatoes">Tomatoes</span>
+      </div>
+      <div id="useResults" style="margin-top:8px; display:flex; flex-direction:column; gap:8px"></div>
     </div>
   </section>
 </main>
@@ -1233,6 +1258,25 @@ function switchTab(tab){
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id==="view-"+tab));
   if(tab==="shopping") renderShopping();
   if(tab==="meals") renderCustomList();
+  if(tab==="useitup") renderUseItUp();
+}
+function renderUseItUp(){
+  const q=(document.getElementById("useSearch").value||"").trim().toLowerCase();
+  const box=document.getElementById("useResults");
+  document.querySelectorAll("#useChips .chip").forEach(c=>c.classList.toggle("active",(c.dataset.use||"").toLowerCase()===q));
+  if(!q){ box.innerHTML='<p class="use-hint">Type an ingredient you\'ve got left over (or tap one above) to see which meals it fits into.</p>'; return; }
+  const order={dinner:0,lunch:1,breakfast:2,snack:3};
+  const matches=allMeals().map(m=>{
+    const used=[...new Set(m.ingredients.filter(i=>i.name.toLowerCase().includes(q)).map(i=>i.name))];
+    return used.length?{m,used}:null;
+  }).filter(Boolean).sort((a,b)=>(order[a.m.type]-order[b.m.type])||a.m.name.localeCompare(b.m.name));
+  if(!matches.length){ box.innerHTML='<p class="use-hint">No meals use “'+esc(q)+'”. Try a simpler word — e.g. “chicken”, “mince”, “rice”.</p>'; return; }
+  box.innerHTML=`<p class="use-hint"><b>${matches.length}</b> meal${matches.length>1?'s':''} you could make:</p>`+matches.map(({m,used})=>
+    `<div class="meal-card" data-id="${m.id}" style="--type:${typeColor(m.type)}" title="Tap for the recipe">
+      <div class="top"><span class="emoji">${m.emoji||"🍽️"}</span><span class="name">${esc(m.name)}</span>
+        <span class="badge">${m.type}${mealCuisine(m)?' · '+esc(mealCuisine(m)):''}</span></div>
+      <div class="meta">uses <b style="color:var(--ink)">${esc(used.join(", "))}</b> · serves ${m.serves} · ~${fmtMoney(mealCost(m))}</div>
+    </div>`).join("");
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
@@ -1284,6 +1328,17 @@ document.addEventListener("DOMContentLoaded",()=>{
     renderLibrary();
   });
   document.getElementById("cuisineFilter").addEventListener("change",e=>{ activeCuisine=e.target.value; renderLibrary(); });
+  /* Use It Up */
+  document.getElementById("useSearch").addEventListener("input",renderUseItUp);
+  document.getElementById("useChips").addEventListener("click",e=>{
+    const c=e.target.closest(".chip"); if(!c) return;
+    const inp=document.getElementById("useSearch");
+    inp.value=(inp.value.trim().toLowerCase()===(c.dataset.use||"").toLowerCase())?"":c.dataset.use;
+    renderUseItUp();
+  });
+  document.getElementById("useResults").addEventListener("click",e=>{
+    const card=e.target.closest(".meal-card"); if(card) openRecipe(card.dataset.id);
+  });
 
   /* Library: select + drag */
   const lib=document.getElementById("library");
