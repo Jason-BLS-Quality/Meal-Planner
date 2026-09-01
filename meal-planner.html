@@ -191,6 +191,9 @@
   .ptotal{background:var(--panel); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:12px; padding:12px 16px; margin-bottom:14px}
   .ptotal b{color:var(--accent); font-size:22px; letter-spacing:-.5px}
   .ptotal span{display:block; color:var(--muted); font-size:12px; margin-top:2px}
+  .icost{cursor:pointer; color:var(--muted); font-size:12.5px; margin-left:auto; padding-left:10px; white-space:nowrap; user-select:none}
+  .icost:hover{color:var(--accent)}
+  .icost.owned{text-decoration:line-through; opacity:.45}
   #syncBody p{line-height:1.45}
   #syncBody input{background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:9px 10px; color:var(--ink)}
 </style>
@@ -647,7 +650,39 @@ const LIBRARY = [
   {id:"s7",name:"Buttered Crumpets",emoji:"🧇",type:"snack",serves:2,ingredients:[
     {name:"Crumpets",qty:1,unit:"pack",cat:"Bakery"},{name:"Butter",qty:20,unit:"g",cat:"Dairy & Eggs"}]},
   {id:"s8",name:"Celery & Peanut Butter",emoji:"🥬",type:"snack",serves:2,ingredients:[
-    {name:"Celery",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Peanut butter",qty:2,unit:"tbsp",cat:"Pantry"}]}
+    {name:"Celery",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Peanut butter",qty:2,unit:"tbsp",cat:"Pantry"}]},
+  // SNACK — healthier
+  {id:"s9",name:"Greek Yoghurt & Honey",emoji:"🥛",type:"snack",serves:1,ingredients:[
+    {name:"Greek yoghurt",qty:200,unit:"g",cat:"Dairy & Eggs"},{name:"Honey",qty:1,unit:"tbsp",cat:"Pantry"}],
+    instr:"Spoon the yoghurt into a bowl|Drizzle with honey"},
+  {id:"s10",name:"Veggie Sticks & Hummus",emoji:"🥕",type:"snack",serves:2,ingredients:[
+    {name:"Carrot",qty:2,unit:"",cat:"Fruit & Veg"},{name:"Cucumber",qty:1,unit:"",cat:"Fruit & Veg"},
+    {name:"Peppers",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Hummus",qty:1,unit:"pack",cat:"Pantry"}],
+    instr:"Cut the carrot, cucumber and pepper into sticks|Serve with the hummus for dipping"},
+  {id:"s11",name:"Boiled Eggs",emoji:"🥚",type:"snack",serves:1,ingredients:[
+    {name:"Eggs",qty:2,unit:"",cat:"Dairy & Eggs"}],
+    instr:"Boil the eggs for 7 min|Cool, peel and season with salt and pepper"},
+  {id:"s12",name:"Mixed Nuts",emoji:"🥜",type:"snack",serves:2,ingredients:[
+    {name:"Mixed nuts",qty:100,unit:"g",cat:"Pantry"}],
+    instr:"Portion a small handful into a bowl"},
+  {id:"s13",name:"Rice Cakes & Peanut Butter",emoji:"🍘",type:"snack",serves:2,ingredients:[
+    {name:"Rice cakes",qty:1,unit:"pack",cat:"Pantry"},{name:"Peanut butter",qty:2,unit:"tbsp",cat:"Pantry"}],
+    instr:"Spread peanut butter over the rice cakes"},
+  {id:"s14",name:"Cheese & Cucumber",emoji:"🧀",type:"snack",serves:1,ingredients:[
+    {name:"Cheddar",qty:60,unit:"g",cat:"Dairy & Eggs"},{name:"Cucumber",qty:1,unit:"",cat:"Fruit & Veg"}],
+    instr:"Slice the cheese and cucumber|Stack and enjoy"},
+  {id:"s15",name:"Edamame",emoji:"🫛",type:"snack",serves:2,ingredients:[
+    {name:"Edamame",qty:150,unit:"g",cat:"Frozen"}],
+    instr:"Steam or microwave the edamame for a few minutes|Sprinkle with salt"},
+  {id:"s16",name:"Cottage Cheese Bowl",emoji:"🥣",type:"snack",serves:1,ingredients:[
+    {name:"Cottage cheese",qty:200,unit:"g",cat:"Dairy & Eggs"},{name:"Cherry tomatoes",qty:100,unit:"g",cat:"Fruit & Veg"}],
+    instr:"Spoon the cottage cheese into a bowl|Top with halved cherry tomatoes and cracked pepper"},
+  {id:"s17",name:"Carrot & Guacamole",emoji:"🥑",type:"snack",serves:2,ingredients:[
+    {name:"Avocado",qty:1,unit:"",cat:"Fruit & Veg"},{name:"Carrot",qty:2,unit:"",cat:"Fruit & Veg"},{name:"Lemon",qty:1,unit:"",cat:"Fruit & Veg"}],
+    instr:"Mash the avocado with a squeeze of lemon and a pinch of salt|Cut carrots into sticks for dipping"},
+  {id:"s18",name:"Roasted Chickpeas",emoji:"🫘",type:"snack",serves:2,ingredients:[
+    {name:"Chickpeas",qty:1,unit:"tin",cat:"Pantry"},{name:"Olive oil",qty:1,unit:"tbsp",cat:"Pantry"}],
+    instr:"Drain and pat the chickpeas dry|Toss with oil and roast at 200°C for 25 min until crisp|Season"}
 ];
 
 /* ---------- Constants ---------- */
@@ -700,17 +735,17 @@ const INSTRUCTIONS={
   s8:"Cut the celery into sticks|Fill the grooves with peanut butter"
 };
 
-/* Rough Woolworths (AU) shelf-price estimates, in $ per the unit each ingredient uses
-   (per g / per each / per tin / per tbsp …). Meal cost = sum(qty × price). Estimates only —
-   real prices change weekly and vary by store. Staples (meat/dairy) calibrated to ~current Woolworths. */
-const PRICES={
-  "Bread":0.18,"Crackers":3.0,"Croutons":0.03,"Crumpets":3.0,"Crusty bread":3.5,"Pitta bread":3.0,"Pizza base":1.5,"Taco shells":3.5,"Tortilla wraps":3.5,
-  "Butter":0.02,"Cheddar":0.014,"Eggs":0.46,"Greek yoghurt":0.006,"Halloumi":6.0,"Milk":0.00155,"Mozzarella":4.5,"Parmesan":0.04,"Yoghurt":1.1,
-  "Fish fingers":5.0,"Oven chips":4.0,"Peas":0.0035,
-  "Avocado":1.5,"Baking potato":0.8,"Broccoli":2.5,"Carrot":0.3,"Celery":1.0,"Cucumber":1.5,"Fresh basil":3.0,"Garlic":0.1,"Ginger":0.5,"Lemon":0.8,"Lettuce":3.0,"New potatoes":0.004,"Onion":0.5,"Peppers":1.5,"Potatoes":0.003,"Romaine lettuce":2.5,"Spinach":0.015,"Spring onion":0.28,"Stir-fry vegetables":0.008,"Tomatoes":0.7,
-  "Beef mince":0.011,"Chicken breast":2.4,"Cod":3.5,"Ham":0.3,"Salmon":5.5,"Sausages":6.0,"Whole chicken":12.0,
-  "Baked beans":1.3,"Caesar dressing":0.22,"Chickpeas":1.1,"Chilli flakes":0.07,"Chilli powder":0.13,"Coconut milk":1.5,"Curry paste":0.25,"Egg noodles":0.008,"Granola":0.01,"Gravy granules":2.5,"Honey":0.17,"Hummus":4.0,"Jam":0.15,"Kidney beans":1.1,"Macaroni":0.003,"Maple syrup":0.3,"Mayonnaise":0.14,"Olive oil":0.16,"Passata":0.002,"Pasta":0.003,"Peanut butter":0.13,"Pesto":0.29,"Plain flour":0.002,"Popcorn":2.0,"Porridge oats":0.0027,"Red lentils":0.006,"Rice":0.002,"Salsa":3.0,"Soy sauce":0.1,"Spaghetti":0.003,"Sweetcorn":1.3,"Tartare sauce":3.0,"Tinned tomatoes":1.1,"Tinned tuna":1.5,"Vegetable stock cube":0.3,
-  "Fettuccine":0.003,"Cream":0.007,"Lasagne sheets":2.5,"Arborio rice":0.008,"Mushrooms":0.008,"Breadcrumbs":0.01,"Bacon":0.012,"Beef strips":0.014,"Oyster sauce":0.10,"Sesame oil":0.10,"Chicken thigh":0.009,"Green beans":0.009,"Fish sauce":0.08,"Pork":0.01,"Pineapple":1.5,"Sweet & sour sauce":3.0,"Teriyaki sauce":0.14,"Sesame seeds":0.05,"Rice noodles":0.01,"Prawns":0.025,"Curry powder":0.13,"Garam masala":0.13,"Lamb":0.016,"Fajita seasoning":1.5,"Tortilla chips":3.0,"Courgette":1.0,"Cherry tomatoes":0.014,"Cous cous":0.005,"Feta":0.025,"Olives":0.015,"Burger buns":2.5,"BBQ sauce":3.0,"Coleslaw":3.0,"Hot sauce":0.08,"Gnocchi":0.004
+/* Pack-based Woolworths (AU) estimates. Each entry is [ pack size in the recipe's unit, pack price $ ].
+   Shopping total = for each item, ceil(qty needed / pack size) × pack price = what you actually buy (whole packs).
+   Per-meal cost stays a "portion" figure (price ÷ size × qty) for comparing meals. Rough estimates — prices drift, vary by store. */
+const PACKS={
+  "Bread":[20,3.50],"Crackers":[1,3.00],"Croutons":[100,3.00],"Crumpets":[1,3.50],"Crusty bread":[1,4.00],"Pitta bread":[1,3.50],"Pizza base":[2,3.50],"Taco shells":[1,4.00],"Tortilla wraps":[1,4.00],"Burger buns":[1,3.00],
+  "Butter":[250,6.00],"Cheddar":[500,8.00],"Cream":[300,2.50],"Eggs":[12,6.50],"Feta":[200,6.00],"Greek yoghurt":[1000,7.00],"Halloumi":[1,6.50],"Milk":[2000,3.30],"Mozzarella":[1,5.00],"Parmesan":[100,4.50],"Yoghurt":[4,4.50],
+  "Fish fingers":[1,5.50],"Oven chips":[1,4.50],"Peas":[1000,4.00],
+  "Avocado":[1,1.80],"Baking potato":[1,1.00],"Broccoli":[1,3.50],"Carrot":[1,0.40],"Celery":[1,3.00],"Cherry tomatoes":[250,4.00],"Coleslaw":[1,3.50],"Courgette":[1,1.20],"Cucumber":[1,2.00],"Fresh basil":[1,3.50],"Garlic":[10,1.00],"Ginger":[1,1.00],"Green beans":[250,3.50],"Lemon":[1,1.00],"Lettuce":[1,3.50],"Mushrooms":[250,3.50],"New potatoes":[1000,4.50],"Onion":[1,0.70],"Peppers":[1,2.00],"Potatoes":[2000,5.00],"Romaine lettuce":[1,3.00],"Spinach":[280,4.00],"Spring onion":[6,2.50],"Stir-fry vegetables":[500,4.50],"Tomatoes":[1,0.80],
+  "Bacon":[250,6.00],"Beef mince":[1000,12.00],"Beef strips":[500,9.00],"Chicken breast":[2,8.50],"Chicken thigh":[500,7.00],"Cod":[2,8.00],"Ham":[10,4.50],"Lamb":[500,14.00],"Pork":[1000,11.00],"Prawns":[250,9.00],"Salmon":[2,12.00],"Sausages":[1,6.50],"Whole chicken":[1,13.00],
+  "Arborio rice":[500,4.50],"Baked beans":[1,1.50],"BBQ sauce":[1,3.50],"Breadcrumbs":[200,2.50],"Caesar dressing":[16,4.00],"Chickpeas":[1,1.20],"Chilli flakes":[40,2.50],"Chilli powder":[15,2.50],"Coconut milk":[1,1.80],"Cous cous":[500,3.00],"Curry paste":[12,3.50],"Curry powder":[15,2.50],"Egg noodles":[250,2.50],"Fajita seasoning":[1,1.80],"Fettuccine":[500,2.00],"Fish sauce":[40,3.50],"Garam masala":[15,2.50],"Gnocchi":[500,2.50],"Granola":[500,5.50],"Gravy granules":[1,2.50],"Honey":[30,5.50],"Hot sauce":[40,3.50],"Hummus":[1,4.00],"Jam":[20,3.50],"Kidney beans":[1,1.20],"Lasagne sheets":[1,2.50],"Macaroni":[500,2.00],"Maple syrup":[20,6.50],"Mayonnaise":[25,4.00],"Olive oil":[50,9.00],"Olives":[200,3.50],"Oyster sauce":[30,3.50],"Passata":[700,2.00],"Pasta":[500,2.00],"Peanut butter":[30,4.50],"Pesto":[12,4.00],"Pineapple":[1,1.80],"Plain flour":[1000,2.00],"Popcorn":[1,2.50],"Porridge oats":[750,2.50],"Red lentils":[500,3.00],"Rice":[1000,3.00],"Rice noodles":[250,3.00],"Salsa":[1,3.50],"Sesame oil":[40,4.50],"Sesame seeds":[40,2.50],"Soy sauce":[40,3.50],"Spaghetti":[500,2.00],"Sweet & sour sauce":[1,3.00],"Sweetcorn":[1,1.50],"Tartare sauce":[1,3.00],"Teriyaki sauce":[25,4.00],"Tinned tomatoes":[1,1.20],"Tinned tuna":[1,1.80],"Tortilla chips":[1,3.50],"Vegetable stock cube":[10,3.00],
+  "Mixed nuts":[400,8.00],"Rice cakes":[1,2.50],"Edamame":[500,5.00],"Cottage cheese":[250,4.00]
 };
 
 /* Cuisine tags for the built-in DINNERS (new dinners carry .cuisine on the object). */
@@ -740,7 +775,7 @@ let _pushTimer=null;
 function emptyState(){
   const plan={};
   DAYS.forEach(d=>{plan[d.k]={breakfast:[],lunch:[],dinner:[],snack:[]};});
-  return {plan,people:2,custom:[],checked:{},manual:[],favourites:{}};
+  return {plan,people:2,custom:[],checked:{},manual:[],favourites:{},have:{}};
 }
 function load(){
   try{
@@ -845,14 +880,12 @@ function stopSync(){
 /* ---------- Helpers ---------- */
 function allMeals(){ return LIBRARY.concat(state.custom); }
 function mealById(id){ return allMeals().find(m=>m.id===id); }
-function mealCost(m){ return (m&&m.ingredients)?m.ingredients.reduce((s,i)=>s+(PRICES[i.name]||0)*(i.qty||0),0):0; }
-function weeklyCost(){
-  let t=0;
-  for(const d of DAYS) for(const s of SLOTS) for(const id of (state.plan[d.k][s.k]||[])){
-    const m=mealById(id); if(m) t+=mealCost(m)*(state.people/(m.serves||2));
-  }
-  return t;
-}
+function unitPrice(name){ const p=PACKS[name]; return p?p[1]/p[0]:0; }
+function mealCost(m){ return (m&&m.ingredients)?m.ingredients.reduce((s,i)=>s+unitPrice(i.name)*(i.qty||0),0):0; }
+/* Pack-based: what you actually buy = whole packs. */
+function lineCostFor(name,qty){ const p=PACKS[name]; return p?Math.ceil((qty||0)/p[0])*p[1]:0; }
+function weeklyShopCost(){ return buildList().filter(i=>!state.have[i.key]).reduce((s,i)=>s+lineCostFor(i.name,i.qty),0); }
+function fullBasketCost(){ return buildList().reduce((s,i)=>s+lineCostFor(i.name,i.qty),0); }
 function fmtMoney(n){ return "$"+(n>=100?Math.round(n).toString():n.toFixed(2)); }
 function mealCuisine(m){ return (m&&m.cuisine) || (m&&CUISINE[m.id]) || ""; }
 function typeColor(t){ return t==="breakfast"?"var(--b)":t==="lunch"?"var(--l)":t==="dinner"?"var(--d)":"var(--s)"; }
@@ -1017,7 +1050,11 @@ function shopMetaHtml(items){
   return `w/c ${f.format(wd.mon)} · ${items.length} items · ${mealCount} meals · for ${state.people} ${state.people==1?'person':'people'} · <b>${ticked}</b> ticked`;
 }
 function shopTotalHtml(){
-  return `<div class="ptotal">💰 Estimated cost <b>~${fmtMoney(weeklyCost())}</b><span>for ${state.people} ${state.people==1?'person':'people'} this week · rough Woolworths prices for ingredients used</span></div>`;
+  const need=weeklyShopCost(), owned=fullBasketCost()-need;
+  return `<div class="ptotal">🛒 To buy this shop <b>~${fmtMoney(need)}</b>`+
+    `<span>for ${state.people} ${state.people==1?'person':'people'} · whole-pack Woolworths prices`+
+    (owned>0.005?` &nbsp;·&nbsp; <b style="color:var(--muted);font-size:12px">${fmtMoney(owned)} of "already have" excluded</b>`:``)+
+    `<br>Tap a price to mark something you <b>already have</b> — it drops off this total. Ticking items off as you shop won't change it.</span></div>`;
 }
 function renderShopping(){
   const items=buildList();
@@ -1046,6 +1083,7 @@ function renderShopping(){
         return `<div class="item${checked?' checked':''}">
           <input type="checkbox" data-key="${esc(i.key)}"${checked?' checked':''}>
           <label data-key="${esc(i.key)}">${esc(lineText(i))}</label>
+          <span class="icost${state.have[i.key]?' owned':''}" data-have="${esc(i.key)}" title="Tap if you already have this — removes it from the total">${fmtMoney(lineCostFor(i.name,i.qty))}</span>
           ${i.manual?`<span class="x" data-manual="${esc(i.name)}" title="Remove">✕</span>`:''}
         </div>`;
       }).join("")}</div>`;
@@ -1345,7 +1383,9 @@ document.addEventListener("DOMContentLoaded",()=>{
   });
   shopBody.addEventListener("click",e=>{
     const x=e.target.closest(".x[data-manual]");
-    if(x){ state.manual=state.manual.filter(m=>m.name!==x.dataset.manual); save(); renderShopping(); }
+    if(x){ state.manual=state.manual.filter(m=>m.name!==x.dataset.manual); save(); renderShopping(); return; }
+    const ic=e.target.closest(".icost[data-have]");
+    if(ic){ const k=ic.dataset.have; if(state.have[k]) delete state.have[k]; else state.have[k]=true; save(); renderShopping(); }
   });
   document.getElementById("manAdd").addEventListener("click",()=>{
     const name=document.getElementById("manName").value.trim(); if(!name) return;
