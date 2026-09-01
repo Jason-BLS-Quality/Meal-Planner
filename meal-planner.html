@@ -310,6 +310,10 @@
           <label>Emoji (optional)</label>
           <input type="text" id="mfEmoji" placeholder="🍲" maxlength="4" style="width:80px">
         </div>
+        <div class="field">
+          <label>Calories per serving (optional)</label>
+          <input type="number" id="mfKcal" placeholder="e.g. 550" min="0" style="width:120px">
+        </div>
         <label style="font-size:12px; color:var(--muted); font-weight:600">Ingredients</label>
         <table class="ing">
           <thead><tr><th>Item</th><th class="qtycol">Qty</th><th class="unitcol">Unit</th><th>Aisle</th><th></th></tr></thead>
@@ -779,6 +783,16 @@ const CUISINE={
   d11:"Italian",d12:"Comfort",d13:"Asian",d14:"Comfort",d15:"Indian",d16:"Mexican",d17:"British",d18:"American",d19:"Italian"
 };
 
+/* Rough calories PER SERVING for the built-in meals (custom meals can carry their own .kcal). Ballpark estimates. */
+const CALORIES={
+  b1:300,b2:400,b3:350,b4:350,b5:450,b6:350,b7:300,b8:300,
+  l1:500,l2:350,l3:550,l4:550,l5:450,l6:450,l7:450,l8:500,l9:300,l10:600,l11:400,
+  d1:600,d2:500,d3:700,d4:500,d5:550,d6:450,d7:650,d8:700,d9:550,d10:650,d11:500,d12:450,d13:400,d14:450,d15:500,d16:500,d17:600,d18:650,d19:650,
+  d20:700,d21:650,d22:550,d23:650,d24:700,d25:550,d26:550,d27:600,d28:600,d29:550,d30:500,d31:600,d32:650,d33:450,d34:650,d35:550,d36:650,d37:700,d38:600,d39:500,d40:450,d41:600,d42:650,d43:550,d44:650,d45:600,d46:550,d47:550,d48:550,d49:600,
+  s1:200,s2:250,s4:150,s5:250,s6:150,s7:250,s8:200,s9:200,s10:150,s11:160,s12:300,s13:200,s14:200,s15:150,s16:180,s17:200,s18:200
+};
+function mealKcal(m){ return (m&&m.kcal) || (m&&CALORIES[m.id]) || 0; }
+
 const DAYS=[{k:"mon",l:"Monday"},{k:"tue",l:"Tuesday"},{k:"wed",l:"Wednesday"},{k:"thu",l:"Thursday"},
   {k:"fri",l:"Friday"},{k:"sat",l:"Saturday"},{k:"sun",l:"Sunday"}];
 const SLOTS=[{k:"breakfast",l:"Breakfast"},{k:"lunch",l:"Lunch"},{k:"dinner",l:"Dinner"},{k:"snack",l:"Snacks"}];
@@ -997,7 +1011,7 @@ function renderLibrary(){
         <span class="name">${esc(m.name)}</span>
         <span class="fav${isFav?' on':''}" data-fav="${m.id}" title="${isFav?'Unpin':'Pin to top'}">${isFav?'★':'☆'}</span>
         <span class="badge">${m.type}</span></div>
-      <div class="meta">~${fmtMoney(mealCost(m))} · ${m.ingredients.length} ingredients · serves ${m.serves}${isCustom?' · <span class="custom-tag">yours</span>':''}</div>
+      <div class="meta">~${fmtMoney(mealCost(m))} · serves ${m.serves}${mealKcal(m)?' · ~'+mealKcal(m)+' kcal':''}${isCustom?' · <span class="custom-tag">yours</span>':''}</div>
     </div>`;
   }).join("");
 }
@@ -1207,7 +1221,7 @@ function openRecipe(id){
     : `<p class="recipe-empty">No instructions yet — you can add some under “My Meals”.</p>`;
   document.getElementById("recipeBody").innerHTML=
     `<div class="recipe-title">${m.emoji||"🍽️"} ${esc(m.name)}</div>`+
-    `<div class="recipe-sub">${esc(m.type)}${mealCuisine(m)?' · '+esc(mealCuisine(m)):''} · serves ${m.serves} · approx ~${fmtMoney(mealCost(m))}</div>`+
+    `<div class="recipe-sub">${esc(m.type)}${mealCuisine(m)?' · '+esc(mealCuisine(m)):''} · serves ${m.serves}${mealKcal(m)?' · ~'+mealKcal(m)+' kcal/serve':''} · approx ~${fmtMoney(mealCost(m))}</div>`+
     `<div class="recipe-h">🛒 Ingredients</div>`+
     `<ul class="recipe-ings">${ings}</ul>`+
     `<div class="recipe-h">👩‍🍳 Method</div>`+
@@ -1275,7 +1289,7 @@ function renderUseItUp(){
     `<div class="meal-card" data-id="${m.id}" style="--type:${typeColor(m.type)}" title="Tap for the recipe">
       <div class="top"><span class="emoji">${m.emoji||"🍽️"}</span><span class="name">${esc(m.name)}</span>
         <span class="badge">${m.type}${mealCuisine(m)?' · '+esc(mealCuisine(m)):''}</span></div>
-      <div class="meta">uses <b style="color:var(--ink)">${esc(used.join(", "))}</b> · serves ${m.serves} · ~${fmtMoney(mealCost(m))}</div>
+      <div class="meta">uses <b style="color:var(--ink)">${esc(used.join(", "))}</b> · serves ${m.serves}${mealKcal(m)?' · ~'+mealKcal(m)+' kcal':''} · ~${fmtMoney(mealCost(m))}</div>
     </div>`).join("");
 }
 
@@ -1493,6 +1507,7 @@ function resetMealForm(){
   document.getElementById("mfServes").value="2";
   document.getElementById("mfType").value="dinner";
   document.getElementById("mfInstr").value="";
+  document.getElementById("mfKcal").value="";
   document.getElementById("ingRows").innerHTML=ingRowHtml();
 }
 function saveMeal(){
@@ -1510,7 +1525,7 @@ function saveMeal(){
   const meal={id:"c"+Date.now()+Math.floor(Math.random()*1000), custom:true,
     name, emoji:document.getElementById("mfEmoji").value.trim()||"🍽️",
     type:document.getElementById("mfType").value,
-    serves:Number(document.getElementById("mfServes").value)||2, ingredients:ings, instr:instr};
+    serves:Number(document.getElementById("mfServes").value)||2, kcal:Number(document.getElementById("mfKcal").value)||0, ingredients:ings, instr:instr};
   state.custom.push(meal); save();
   resetMealForm(); renderCustomList(); renderLibrary();
   toast("Saved — it's now in your library ✓");
