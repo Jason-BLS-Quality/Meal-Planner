@@ -127,11 +127,14 @@
   .cat-block{break-inside:avoid; margin-bottom:14px; padding:12px 14px}
   .cat-block h3{margin:0 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:.6px; color:var(--accent); display:flex; align-items:center; gap:7px}
   .cat-block h3 .n{color:var(--muted); font-weight:600}
-  .item{display:flex; align-items:center; gap:9px; padding:5px 2px; border-bottom:1px solid var(--line)}
+  .item{display:flex; align-items:flex-start; gap:9px; padding:6px 2px; border-bottom:1px solid var(--line)}
   .item:last-child{border-bottom:none}
-  .item input[type=checkbox]{width:17px; height:17px; accent-color:var(--accent); cursor:pointer}
-  .item label{flex:1; cursor:pointer}
+  .item input[type=checkbox]{width:17px; height:17px; accent-color:var(--accent); cursor:pointer; margin-top:2px; flex:0 0 auto}
+  .item-main{flex:1; min-width:0}
+  .item label{cursor:pointer; display:block}
+  .item-for{font-size:11px; color:var(--muted); line-height:1.25; margin-top:1px}
   .item.checked label{text-decoration:line-through; color:var(--muted)}
+  .item.checked .item-for{opacity:.55}
   .item .x{cursor:pointer; color:var(--muted); font-weight:700; opacity:0; padding:0 4px}
   .item:hover .x{opacity:1}
   .empty-state{text-align:center; padding:60px 20px; color:var(--muted)}
@@ -715,53 +718,93 @@ const LIBRARY = [
 ];
 
 /* ---------- Constants ---------- */
-/* Simple cooking steps for the built-in meals (steps separated by | ). Custom meals carry their own .instr */
+/* Detailed cooking steps for the built-in meals (steps separated by | ). Custom meals carry their own .instr */
 const INSTRUCTIONS={
-  b1:"Combine the oats and milk in a small pot|Simmer 4–5 min, stirring, until creamy|Drizzle with honey and serve",
-  b2:"Whisk the eggs with a splash of milk|Toast and butter the bread|Gently scramble the eggs in a buttered pan over low heat|Pile onto the toast",
+  b1:"Combine the oats and milk in a small pot|Cook over MEDIUM heat, stirring often, 4–5 min until thick and creamy|Take off the heat, drizzle with honey and serve",
+  b2:"Whisk the eggs with a splash of milk and a pinch of salt|Melt the butter in a pan over LOW heat|Add the eggs and stir gently and constantly for 2–3 min until just set — don't overcook|Pile onto buttered toast",
   b3:"Spoon the yoghurt into a bowl|Top with granola|Drizzle with honey",
-  b4:"Toast the bread|Mash the avocado with a squeeze of lemon|Spread over the toast|Sprinkle with chilli flakes",
-  b5:"Whisk the flour, eggs and milk into a smooth batter|Cook spoonfuls in a hot non-stick pan, flipping when bubbles appear|Serve with maple syrup",
-  b6:"Heat the beans in a pot or microwave|Toast and butter the bread|Tip the beans over the toast",
-  b7:"Boil the eggs 5–6 min for runny yolks|Toast and butter the bread, then cut into strips|Serve the eggs in cups for dipping",
+  b4:"Toast the bread|Mash the avocado with a squeeze of lemon and a pinch of salt|Spread thickly over the toast|Sprinkle with chilli flakes",
+  b5:"Whisk the flour, eggs and milk into a smooth batter; rest 5 min|Heat a non-stick pan over MEDIUM with a little butter|Pour small rounds; cook 1–2 min until bubbles appear on top, flip and cook 1 min more|Serve with maple syrup",
+  b6:"Heat the beans in a pot over MEDIUM, stirring, 3–4 min (or microwave 2 min)|Toast and butter the bread|Tip the hot beans over the toast",
+  b7:"Lower the eggs into boiling water and simmer 5–6 min for runny yolks (7 min for firmer)|Meanwhile toast and butter the bread, cut into strips|Serve the eggs in cups for dipping",
   b8:"Toast the bread|Spread with butter, then jam",
-  l1:"Cook and slice the chicken|Chop the lettuce|Toss with the dressing, croutons and parmesan|Top with the chicken",
-  l2:"Soften the chopped onion and garlic in a pot|Add the tomatoes and stock, simmer 15 min|Blend until smooth|Serve with crusty bread",
-  l3:"Boil the pasta until tender, then drain|Mix with the drained tuna, sweetcorn and mayo|Season and serve",
-  l4:"Slice and fry the halloumi until golden|Slice the peppers|Spread hummus on the wraps, add halloumi and peppers|Roll up",
-  l5:"Bake the potatoes until soft (microwave first to speed it up)|Heat the beans|Split the potato and add butter, beans and grated cheese",
+  l1:"Season the chicken; pan-fry over MEDIUM-HIGH 5–6 min each side until cooked through, then rest and slice|Chop the lettuce|Toss with the dressing, croutons and parmesan|Top with the sliced chicken",
+  l2:"Soften the chopped onion and garlic in a pot over MEDIUM 5 min|Add the tomatoes and stock, bring to a simmer for 15 min|Blend until smooth and season|Serve with crusty bread",
+  l3:"Boil the pasta in salted water until tender (per packet, ~10 min), then drain|Mix with the drained tuna, sweetcorn and mayo|Season and serve warm or cold",
+  l4:"Slice the halloumi; fry over MEDIUM-HIGH 1–2 min each side until golden|Slice the peppers|Spread hummus on the wraps, add halloumi and peppers|Roll up tightly",
+  l5:"Prick the potatoes; microwave 5 min then bake 200°C 20 min for crisp skin (or all-oven ~1 hr)|Heat the beans|Split the potato and add butter, beans and grated cheese",
   l6:"Butter the bread|Layer the ham and cheese|Close and cut",
-  l7:"Butter the bread on the outside|Fill with cheese|Toast in a pan until golden on both sides",
-  l8:"Cook the rice (or use leftover)|Scramble the eggs in a hot pan, push to one side|Add the rice, peas and soy sauce and stir-fry|Stir through the spring onion",
-  l9:"Soften the chopped onion and carrot|Add the lentils, stock and a little water|Simmer 20–25 min until soft|Blend for a smooth soup if you like",
-  l10:"Boil the pasta, then drain (save a splash of the water)|Stir through the pesto, loosening with the pasta water|Top with parmesan",
-  l11:"Warm the pitta|Slice the cucumber|Serve the pitta with hummus and cucumber for dipping",
-  d1:"Brown the mince in a pan|Add the chopped onion, garlic and carrot and soften|Stir in the tomatoes and simmer 20 min|Boil the spaghetti and serve the sauce on top",
-  d2:"Slice and stir-fry the chicken until cooked through|Add the veg and grated ginger, stir-fry|Add the cooked noodles and soy sauce|Toss and serve",
-  d3:"Spread the passata over the base|Top with torn mozzarella|Bake hot (220°C) for 10–12 min|Scatter with basil",
-  d4:"Boil the potatoes and steam the broccoli|Pan-fry or bake the salmon with oil and lemon, about 12 min|Serve together",
-  d5:"Brown the mince, then stir in the beans and salsa|Warm the taco shells|Fill with mince, cheese and lettuce",
-  d6:"Fry the onion with the curry paste|Add the chickpeas and coconut milk, simmer 10 min|Stir in the spinach until wilted|Serve with rice",
-  d7:"Roast the chicken at 200°C (about 20 min per 500g) until the juices run clear|Roast chopped potatoes alongside|Boil the carrots and peas|Make the gravy and serve",
-  d8:"Bake the chips and cod per the packet|Boil the peas|Serve with tartare sauce",
-  d9:"Brown the mince with the onion|Stir in the chilli powder, tomatoes and beans|Simmer 20 min|Serve with rice",
-  d10:"Grill or fry the sausages|Boil and mash the potatoes with a knob of butter|Fry the sliced onion and make the gravy|Serve together",
-  d11:"Soften the onion and garlic|Add the tomatoes, simmer 15 min and season|Boil the pasta and stir through the sauce",
-  d12:"Bake the potatoes until soft|Mix the tuna, sweetcorn and mayo|Split the potato and pile on the filling",
-  d13:"Stir-fry the garlic and veg in a hot pan|Add the cooked noodles and soy sauce|Toss and serve",
-  d14:"Whisk the eggs and pour into a hot buttered pan|As it sets, add cheese and sliced tomato|Fold over and slide out",
-  d15:"Fry the onion with the curry paste|Add the lentils, coconut milk and a little water|Simmer about 20 min until soft|Serve with rice",
-  d16:"Fry the onion with the chilli powder|Add the tomatoes and beans, simmer 15 min|Serve with rice",
-  d17:"Bake the fish fingers and chips per the packet|Heat the beans|Serve",
-  d18:"Boil the macaroni|Melt the butter, stir in the flour, then whisk in the milk to a smooth sauce|Stir in the cheese until melted|Mix through the macaroni (grill the top if you like)",
-  d19:"Fry the sausages and slice|Boil the pasta|Mix with the tomatoes and sausage in a dish, top with cheese|Bake at 200°C for about 20 min",
+  l7:"Butter the bread on the OUTSIDE|Fill with cheese|Toast in a dry pan over MEDIUM 2–3 min each side, pressing down, until golden and melted",
+  l8:"Use cold cooked rice|Scramble the eggs in a hot oiled pan/wok over HIGH, then push to one side|Add the rice, peas and soy sauce; stir-fry over HIGH 3–4 min|Stir through the spring onion",
+  l9:"Soften the chopped onion and carrot over MEDIUM 5 min|Add the lentils, stock and a little water|Simmer 20–25 min until soft, season|Blend for a smooth soup if you like",
+  l10:"Boil the pasta in salted water, then drain (save a splash of the water)|Off the heat, stir through the pesto, loosening with the pasta water|Top with parmesan",
+  l11:"Warm the pitta in the toaster or a dry pan|Slice the cucumber|Serve the pitta with hummus and cucumber for dipping",
+  d1:"Brown the mince in a pan over MEDIUM-HIGH, breaking it up, 5–6 min|Add the chopped onion, garlic and carrot; cook over MEDIUM 5 min to soften|Stir in the tomatoes, reduce to LOW and simmer 20–30 min, stirring now and then|Boil the spaghetti in salted water and serve the sauce on top",
+  d2:"Slice the chicken; stir-fry in a hot oiled wok over HIGH 5–6 min until cooked through|Add the veg and grated ginger; stir-fry over HIGH 3–4 min, keeping them crisp|Add the cooked noodles and soy sauce|Toss over the heat 1 min and serve",
+  d3:"Heat the oven to 220°C|Spread the passata over the base, leaving a border|Top with torn mozzarella|Bake 10–12 min until the cheese is bubbling; scatter with basil",
+  d4:"Boil the new potatoes 15 min; steam the broccoli 4–5 min|Pan-fry the salmon skin-down over MEDIUM-HIGH 4 min, then flip 2–3 min (or bake 200°C 12 min)|Squeeze over lemon, drizzle with oil and serve",
+  d5:"Brown the mince over MEDIUM-HIGH 5–6 min; stir in the beans and salsa and simmer 5 min|Warm the taco shells in the oven 3–4 min|Fill with mince, cheese and lettuce",
+  d6:"Fry the onion over MEDIUM 4 min, then add the curry paste and cook 1 min until fragrant|Add the chickpeas and coconut milk; simmer 10 min|Stir in the spinach until wilted|Serve with rice",
+  d7:"Heat the oven to 200°C; roast the chicken ~20 min per 500g until the juices run clear, then rest 10 min|Roast chopped potatoes in oil alongside ~45 min, turning once|Boil the carrots and peas|Make the gravy and serve",
+  d8:"Bake the oven chips at 220°C per packet (~20–25 min)|Add the cod for the last 15–18 min|Boil the peas 3 min|Serve with tartare sauce",
+  d9:"Brown the mince with the onion over MEDIUM-HIGH 6 min|Stir in the chilli powder 1 min, then the tomatoes and beans|Reduce to LOW and simmer 20–30 min|Serve with rice",
+  d10:"Fry or grill the sausages over MEDIUM 12–15 min, turning, until browned through|Boil the potatoes 15 min, then mash with butter and a splash of milk|Fry the sliced onion until soft and make the gravy|Serve together",
+  d11:"Soften the onion and garlic over MEDIUM 5 min|Add the tomatoes, simmer 15 min and season|Boil the pasta and stir through the sauce",
+  d12:"Prick and bake the potatoes until soft (microwave 5 min then oven 200°C 20 min)|Mix the tuna, sweetcorn and mayo|Split the potato and pile on the filling",
+  d13:"Heat a wok/pan over HIGH|Stir-fry the garlic and veg 4–5 min, keeping them crisp|Add the cooked noodles and soy sauce; toss over HIGH 1 min and serve",
+  d14:"Whisk the eggs with a pinch of salt|Melt butter in a pan over MEDIUM|Pour in the eggs; as they set, scatter over cheese and sliced tomato|Fold over and slide out while still soft in the middle",
+  d15:"Fry the onion over MEDIUM 4 min, add the curry paste 1 min|Add the lentils, coconut milk and a little water|Simmer 20 min, stirring, until soft and thick|Serve with rice",
+  d16:"Fry the onion with the chilli powder over MEDIUM 4 min|Add the tomatoes and beans; simmer 15 min|Season and serve with rice",
+  d17:"Bake the fish fingers and chips at 220°C per packet (~20 min)|Heat the beans|Serve",
+  d18:"Boil the macaroni until just tender, then drain|Melt the butter over MEDIUM, stir in the flour 1 min, then whisk in the milk to a smooth sauce|Off the heat, stir in the cheese until melted|Mix through the macaroni (grill the top 5 min for a crust)",
+  d19:"Fry the sausages over MEDIUM until browned, then slice|Boil the pasta|Mix with the tomatoes and sausage in a dish, top with cheese|Bake 200°C 20 min until golden",
+  d20:"Boil the fettuccine in salted water|Fry the sliced chicken over MEDIUM-HIGH 5–6 min until golden and cooked|Lower to MEDIUM; add garlic, cream and butter and simmer 2–3 min|Stir in parmesan and toss with the drained pasta",
+  d21:"Brown the mince with onion and garlic over MEDIUM-HIGH; add tomatoes and simmer LOW 15 min|Make a white sauce: melt butter, stir in flour 1 min, whisk in milk until thick|Layer mince, lasagne sheets and white sauce, repeating|Top with cheese and bake 200°C 35–40 min until golden",
+  d22:"Fry the onion, garlic and mushrooms over MEDIUM 5 min|Add the rice and stir 1 min to toast|Add hot stock a ladle at a time over MEDIUM-LOW, stirring, ~20 min until creamy and just tender|Stir through the parmesan and butter, rest 2 min",
+  d23:"Flatten the chicken; coat in flour, then beaten egg, then breadcrumbs|Shallow-fry over MEDIUM-HIGH 3–4 min each side until golden|Top with passata and mozzarella|Bake 200°C 12–15 min until melted, finish with parmesan",
+  d24:"Boil the spaghetti|Fry the chopped bacon with the garlic over MEDIUM until crisp|Mix the eggs and parmesan in a bowl|OFF the heat, toss the hot pasta with the bacon, then the egg mix — the residual heat makes a silky sauce (don't scramble it)",
+  d25:"Stir-fry the beef in a hot oiled wok over HIGH 3–4 min, then remove|Add broccoli, garlic and ginger; stir-fry HIGH 3 min with a splash of water to steam|Return the beef, add soy and oyster sauce, toss 1 min|Serve over rice",
+  d26:"Cook the noodles and drain|Stir-fry the sliced chicken over HIGH 5 min until cooked|Add the veg and garlic; stir-fry 3 min|Add the noodles, soy sauce and sesame oil; toss over HIGH 1–2 min",
+  d27:"Fry the curry paste in a little oil over MEDIUM 1 min until fragrant|Add the chicken and brown 4–5 min|Pour in the coconut milk and green beans; simmer 15 min|Finish with fish sauce and serve with rice",
+  d28:"Fry the pork over MEDIUM-HIGH until golden, 6–8 min|Add the peppers and stir-fry 2 min|Stir in the sauce and pineapple; simmer 3–4 min|Serve with rice",
+  d29:"Pan-fry the salmon over MEDIUM-HIGH 4 min skin-down, then flip 2 min|Add the teriyaki sauce and let it bubble to a sticky glaze 1–2 min|Steam broccoli and cook rice|Serve topped with sesame seeds",
+  d30:"Soak the rice noodles in hot water until soft, then drain|Stir-fry the prawns and veg in a hot wok over HIGH 3–4 min|Add the noodles, curry powder and soy sauce; toss over HIGH 2 min|Push aside, scramble the egg, then mix through",
+  d31:"Fry the onion over MEDIUM 5 min, add the curry paste 1 min|Add the chicken and brown 5 min|Add the passata and simmer LOW 20 min|Stir in the cream, warm through and serve with rice",
+  d32:"Fry the onion in the butter with the garam masala over MEDIUM 5 min|Add the chicken and brown 5 min|Add the passata and simmer LOW 15 min|Stir in the cream and serve with rice",
+  d33:"Fry the onion and garlic over MEDIUM 5 min|Add the garam masala 1 min, then the chickpeas and tomatoes|Simmer 15 min, mashing a few chickpeas to thicken|Serve with rice",
+  d34:"Brown the diced lamb over MEDIUM-HIGH in batches, then remove|Fry the onions and curry paste 5 min|Return the lamb and add the tomatoes; cover and simmer LOW 40–60 min until tender|Stir in the yoghurt off the heat; serve with rice",
+  d35:"Slice and fry the chicken with the seasoning over MEDIUM-HIGH 5 min|Add the peppers and onion; fry 4–5 min until charred and soft|Warm the wraps|Fill with chicken, peppers and salsa",
+  d36:"Brown the mince with onion, beans and chilli over MEDIUM-HIGH 6 min|Roll into the wraps and place seam-down in a dish|Top with passata and cheese|Bake 200°C 20 min",
+  d37:"Brown the mince with the beans over MEDIUM-HIGH 6 min|Spread chips on a tray, top with mince and cheese|Grill (or oven 200°C) 5 min until the cheese melts|Top with salsa and sliced avocado",
+  d38:"Season and fry the lamb over MEDIUM-HIGH 6–8 min until browned|Make tzatziki: mix the yoghurt with grated, squeezed cucumber|Warm the pittas|Fill with lamb, salad and tzatziki",
+  d39:"Heat the oven to 200°C|Chop the veg, toss with oil on a tray and roast 25 min|Add the sliced halloumi and roast 10 min more until golden|Make the cous cous (pour over boiling water, cover 5 min); serve together",
+  d40:"Season and grill/pan-fry the chicken over MEDIUM-HIGH 5–6 min each side, then rest and slice|Chop the cucumber, tomato and onion|Add the olives and crumbled feta|Dress with olive oil and top with the chicken",
+  d41:"Brown the mince with onion and carrot over MEDIUM-HIGH 6 min|Add gravy and peas, simmer 10 min, then tip into a dish|Boil and mash the potatoes with butter; spread over the top|Bake 200°C 25 min until golden",
+  d42:"Heat oven to 220°C; make a batter with flour, eggs and milk and rest 15 min|Brown the sausages in a little oil in the hot tin 5 min|Pour the batter around them|Bake 30 min until risen and golden — don't open the oven; serve with gravy",
+  d43:"Poach the fish gently in the milk over LOW 5 min, then lift out and flake (keep the milk)|Make a sauce with that milk, the butter and flour|Mix the fish, peas and sauce in a dish|Top with mash and cheese; bake 200°C 25 min",
+  d44:"Shape the mince into patties and season well|Fry over MEDIUM-HIGH 4 min each side — don't press them|Add cheese to melt for the last minute|Toast the buns and build with lettuce, tomato and onion",
+  d45:"Rub the pork; slow-cook LOW with the onion — oven 150°C for 3–4 hrs (or a slow cooker) until it shreds easily|Shred and mix through the BBQ sauce|Toast the buns|Pile in the pork with coleslaw",
+  d46:"Fry the chicken over MEDIUM-HIGH 5–6 min until cooked, then slice and toss in the hot sauce|Warm the wraps|Fill with chicken, lettuce, cheese and a little mayo|Roll up",
+  d47:"Brown the sausages over MEDIUM, then slice|Fry the onion and pepper 5 min|Add the beans and tomatoes; simmer LOW 20 min|Lovely with crusty bread",
+  d48:"Bake the potatoes until soft (microwave 5 min then oven 200°C 20 min)|Brown the mince with beans, tomatoes and chilli over MEDIUM-HIGH, then simmer 15 min|Split the potatoes|Top with chilli and grated cheese",
+  d49:"Fry the garlic in a little oil over MEDIUM 1 min|Add the passata and cream and simmer 5 min|Boil the gnocchi 2–3 min until they float, then drain|Toss with the sauce and spinach until wilted, top with parmesan",
   s1:"Cut the carrots into sticks|Serve with the hummus for dipping",
   s2:"Slice the cheese|Serve on the crackers",
   s4:"Spoon the yoghurt into pots — done",
   s5:"Toast the bread|Spread with peanut butter",
-  s6:"Pop the popcorn per the packet|Tip into a bowl",
-  s7:"Toast the crumpets|Spread with butter while warm",
-  s8:"Cut the celery into sticks|Fill the grooves with peanut butter"
+  s6:"Pop the popcorn per the packet (microwave, or stovetop over MEDIUM with the lid on until the pops slow)|Tip into a bowl",
+  s7:"Toast the crumpets until golden|Spread with butter while hot so it soaks in",
+  s8:"Cut the celery into sticks|Fill the grooves with peanut butter",
+  s9:"Spoon the yoghurt into a bowl|Drizzle with honey",
+  s10:"Cut the carrot, cucumber and pepper into sticks|Serve with the hummus",
+  s11:"Lower the eggs into boiling water and simmer 7 min for just-set|Cool under cold water, then peel and season",
+  s12:"Portion a small handful into a bowl",
+  s13:"Spread peanut butter over the rice cakes",
+  s14:"Slice the cheese and cucumber|Stack and enjoy",
+  s15:"Steam or microwave the edamame 3–4 min|Sprinkle with salt",
+  s16:"Spoon the cottage cheese into a bowl|Top with halved cherry tomatoes and cracked pepper",
+  s17:"Mash the avocado with a squeeze of lemon and a pinch of salt|Cut carrots into sticks for dipping",
+  s18:"Heat the oven to 200°C|Drain and pat the chickpeas very dry|Toss with oil and roast 25–30 min, shaking halfway, until crisp|Season while hot"
 };
 
 /* Pack-based Woolworths (AU) estimates. Each entry is [ pack size in the recipe's unit, pack price $ ].
@@ -965,7 +1008,8 @@ function listAsText(withTicks){
   cats.forEach(cat=>{
     txt+=cat.toUpperCase()+"\n";
     byCat[cat].sort((a,b)=>a.name.localeCompare(b.name)).forEach(i=>{
-      txt+=(withTicks?(state.checked[i.key]?"[x] ":"[ ] "):"- ")+lineText(i)+"\n";
+      const forM=(i.meals&&i.meals.size)?"  — for "+[...i.meals].join(", "):"";
+      txt+=(withTicks?(state.checked[i.key]?"[x] ":"[ ] "):"- ")+lineText(i)+forM+"\n";
     });
     txt+="\n";
   });
@@ -1068,8 +1112,9 @@ function buildList(){
         const scale=state.people/(m.serves||2);
         for(const ing of m.ingredients){
           const key=ing.name.trim().toLowerCase()+"|"+(ing.unit||"")+"|"+ing.cat;
-          const cur=map.get(key)||{key,name:ing.name,unit:ing.unit||"",cat:ing.cat,qty:0};
+          const cur=map.get(key)||{key,name:ing.name,unit:ing.unit||"",cat:ing.cat,qty:0,meals:new Set()};
           cur.qty+=ing.qty*scale;
+          cur.meals.add(m.name);
           map.set(key,cur);
         }
       }
@@ -1077,7 +1122,7 @@ function buildList(){
   }
   for(const m of state.manual){
     const key="manual|"+m.name.trim().toLowerCase()+"|"+(m.unit||"")+"|"+m.cat;
-    map.set(key,{key,name:m.name,unit:m.unit||"",cat:m.cat,qty:Number(m.qty)||0,manual:true});
+    map.set(key,{key,name:m.name,unit:m.unit||"",cat:m.cat,qty:Number(m.qty)||0,manual:true,meals:new Set()});
   }
   return Array.from(map.values());
 }
@@ -1119,9 +1164,13 @@ function renderShopping(){
     return `<div class="panel cat-block"><h3>${CAT_EMOJI[cat]||"📦"} ${esc(cat)} <span class="n">(${list.length})</span></h3>
       ${list.map(i=>{
         const checked=!!state.checked[i.key];
+        const forMeals = (i.meals&&i.meals.size) ? [...i.meals].join(", ") : (i.manual?"added by you":"");
         return `<div class="item${checked?' checked':''}">
           <input type="checkbox" data-key="${esc(i.key)}"${checked?' checked':''}>
-          <label data-key="${esc(i.key)}">${esc(lineText(i))}</label>
+          <div class="item-main">
+            <label data-key="${esc(i.key)}">${esc(lineText(i))}</label>
+            ${forMeals?`<div class="item-for">for ${esc(forMeals)}</div>`:''}
+          </div>
           <span class="icost${state.have[i.key]?' owned':''}" data-have="${esc(i.key)}" title="Tap if you already have this — removes it from the total">${fmtMoney(lineCostFor(i.name,i.qty))}</span>
           ${i.manual?`<span class="x" data-manual="${esc(i.name)}" title="Remove">✕</span>`:''}
         </div>`;
@@ -1209,7 +1258,7 @@ function toast(msg){
 
 /* ---------- Recipe popup ---------- */
 function recipeSteps(m){
-  const raw=(m.instr||INSTRUCTIONS[m.id]||"").trim();
+  const raw=(INSTRUCTIONS[m.id]||m.instr||"").trim();
   return raw ? raw.split(/\||\n/).map(s=>s.trim()).filter(Boolean) : [];
 }
 function openRecipe(id){
