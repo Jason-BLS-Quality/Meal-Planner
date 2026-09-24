@@ -322,6 +322,19 @@
   .mbar .zone{position:absolute; top:0; bottom:0; background:color-mix(in srgb,var(--s) 25%,transparent)}
   .confetti{font-size:44px; text-align:center; line-height:1}
   .fit-ok{color:var(--s); font-weight:700} .fit-over{color:var(--accent); font-weight:700}
+  .ptable-wrap{overflow-x:auto; margin:2px 0}
+  table.ptable{width:100%; border-collapse:collapse; font-size:13px}
+  table.ptable th{font-size:11.5px; text-align:left; font-weight:700; padding:5px 6px; border-bottom:1px solid var(--line); white-space:nowrap}
+  table.ptable td{padding:6px; border-bottom:1px solid var(--line); vertical-align:top}
+  table.ptable td:first-child{color:var(--muted)}
+  table.ptable tr.tot-row td{font-weight:700; color:var(--ink); border-bottom:none}
+  @media(max-width:520px){
+    table.ptable{font-size:12.5px} table.ptable th{white-space:normal; font-size:11px; padding:5px 4px}
+    table.ptable td{padding:5px 4px} table.ptable td:first-child{max-width:96px; font-size:12px}
+    table.ptable .small{font-size:10.5px}
+  }
+  .chip-meal.personal{border-style:dashed}
+  .chip-meal .own{font-size:12px}
   .macro-line{display:flex; gap:12px; flex-wrap:wrap; font-size:13px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin:-4px 0 6px}
   .macro-line b{color:var(--accent)}
   .dbadge{font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:10px; background:color-mix(in srgb,var(--t) 16%,transparent); color:var(--t); white-space:nowrap}
@@ -361,7 +374,7 @@
     <div class="spacer"></div>
     <div class="ctrl meal-only">
       👥 People
-      <select id="people" title="Scales the shopping quantities">
+      <select id="people" title="How many people eat the shared meals. People with a profile get their own portion size; anyone extra gets a standard serve.">
         <option>1</option><option selected>2</option><option>3</option><option>4</option>
         <option>5</option><option>6</option><option>7</option><option>8</option>
       </select>
@@ -1207,7 +1220,7 @@ const CUISINE={
 
 /* Rough calories PER SERVING for the built-in meals (custom meals can carry their own .kcal). Ballpark estimates. */
 const CALORIES={
-  b1:300,b2:400,b3:350,b4:350,b5:450,b6:350,b7:300,b8:300,
+  b1:300,b2:400,b3:350,b4:350,b5:300,b6:350,b7:300,b8:300,
   l1:500,l2:350,l3:550,l4:550,l5:450,l6:450,l7:450,l8:500,l9:300,l10:600,l11:400,
   d1:600,d2:500,d3:700,d4:500,d5:550,d6:450,d7:650,d8:700,d9:550,d10:650,d11:500,d12:450,d13:400,d14:450,d15:500,d16:500,d17:600,d18:650,d19:650,
   d20:700,d21:650,d22:550,d23:650,d24:700,d25:550,d26:550,d27:600,d28:600,d29:550,d30:500,d31:600,d32:650,d33:450,d34:650,d35:550,d36:650,d37:700,d38:600,d39:500,d40:450,d41:600,d42:650,d43:550,d44:650,d45:600,d46:550,d47:550,d48:550,d49:600,
@@ -1452,11 +1465,227 @@ function stopSync(){
 
 /* ---------- Helpers ---------- */
 function allMeals(){ return LIBRARY.concat(state.custom); }
-function mealById(id){ return allMeals().find(m=>m.id===id); }
+/* Plan entries are a meal id ("d6") for shared meals, or "id@personId" for a personal item (e.g. one person's extra snack). */
+function mealById(id){ const k=String(id).split("@")[0]; return allMeals().find(m=>m.id===k); }
+function entryPid(e){ const s=String(e), i=s.indexOf("@"); return i<0?null:s.slice(i+1); }
+function entryMealId(e){ return String(e).split("@")[0]; }
+
+/* ---------- Portions: one "serve" is the standard plate; each person eats their own multiple of it ---------- */
+const REF_KCAL=2100;   // a standard serve suits roughly a 2,100 kcal/day eater
+function portionOf(p){ if(!p) return 1; if(p.portion&&p.portion!=="auto") return Number(p.portion)||1; return clamp(Math.round(targetsFor(p).kcal/REF_KCAL*10)/10,0.7,1.6); }
+/* main meals scale with the person's portion; snacks, treats and takeaway are fixed items */
+function scalesWithPortion(m){ return !!m && !m.takeaway && (m.type==="breakfast"||m.type==="lunch"||m.type==="dinner"); }
+/* who eats the shared meals: every profile at their portion, plus any extra (un-profiled) people at a standard serve */
+function eaters(){
+  const list=profiles().map(p=>({pid:p.id,name:p.name,emoji:p.emoji,pm:portionOf(p)}));
+  for(let i=list.length;i<(state.people||2);i++) list.push({pid:null,name:"Guest",emoji:"🙂",pm:1});
+  return list;
+}
+function householdServes(){ return eaters().reduce((s,e)=>s+e.pm,0); }
+function fmtX(v){ return (Math.round(v*100)/100)+"×"; }
+/* PORTIONS[id] = {plate:[{c,g?,n?,step?,note?,alt?}], tip} — one standard serve as it's eaten (cooked grams, piece counts). */
+const PORTIONS={};
+/* Portion guides — one standard serve per meal, as eaten (cooked grams, piece counts, sizes). Derived from each
+   recipe's ingredients ÷ serves and cross-checked, so they match the shopping list. */
+Object.assign(PORTIONS,{
+"b1":{"plate":[{"c":"Porridge (oats cooked in milk)","g":190,"note":"≈ ¾ cup cooked"},{"c":"Honey","g":10,"note":"≈ 1½ tsp"}],"tip":"Serve in a small bowl and drizzle the honey over just before eating; add a splash more milk if it's too thick."},
+"b2":{"plate":[{"c":"Scrambled eggs","g":110,"n":2,"step":1,"note":"2 eggs' worth, ≈ ½ cup cooked"},{"c":"Buttered toast","g":35,"n":1,"step":1,"alt":"or 1 thick slice of sourdough (≈ 50 g)"}],"tip":"Pile the eggs onto the toast while they're still soft and glossy."},
+"b3":{"plate":[{"c":"Greek yoghurt","g":150,"note":"≈ ⅔ cup"},{"c":"Granola","g":40,"note":"≈ ⅓ cup"},{"c":"Honey","g":10,"note":"≈ 1½ tsp"}],"tip":"Yoghurt on the bottom, then granola on top just before eating so it stays crunchy, then the honey."},
+"b4":{"plate":[{"c":"Toast","g":35,"n":1,"step":1,"alt":"or 1 thick slice of sourdough (≈ 50 g)"},{"c":"Smashed avocado","g":75,"note":"½ avocado"}],"tip":"Spread the avocado right to the edges, then finish with a pinch of chilli flakes and a squeeze of lemon."},
+"b5":{"plate":[{"c":"Small pancakes (10 cm)","g":120,"n":4,"step":1,"alt":"or 2 large (20 cm) pancakes"},{"c":"Maple syrup","g":10,"note":"≈ 1½ tsp"}],"tip":"Stack the pancakes and pour the syrup over the top of the stack."},
+"b6":{"plate":[{"c":"Baked beans","g":210,"note":"½ tin"},{"c":"Buttered toast","g":35,"n":1,"step":1,"alt":"or 1 thick slice of sourdough (≈ 50 g)"}],"tip":"Tip the hot beans over the toast so it's mostly covered, about half a tin per slice."},
+"b7":{"plate":[{"c":"Soft-boiled eggs","g":100,"n":2,"step":1},{"c":"Toast soldiers","g":35,"n":1,"step":1,"note":"1 buttered slice cut into 4–5 strips"}],"tip":"Two eggs in cups with the soldiers alongside for dipping."},
+"b8":{"plate":[{"c":"Toast","g":70,"n":2,"step":1,"alt":"or 1 large thick slice of sourdough"},{"c":"Butter","g":10,"note":"≈ 2 tsp, spread thinly"},{"c":"Jam","g":40,"note":"2 tbsp, 1 per slice"}],"tip":"Butter thinly, then spread about 1 tbsp of jam on each slice."},
+"l1":{"plate":[{"c":"Sliced chicken breast","g":170,"note":"1 fillet, cooked"},{"c":"Cos (romaine) lettuce","g":150,"note":"½ lettuce, ≈ 3 big handfuls chopped"},{"c":"Croutons","g":25,"note":"a small handful"},{"c":"Parmesan","g":20,"note":"≈ 3 tbsp grated or shaved"},{"c":"Caesar dressing","g":30,"note":"2 tbsp"}],"tip":"Toss the leaves, croutons and dressing together first, then lay the sliced chicken and parmesan over the top."},
+"l2":{"plate":[{"c":"Tomato soup","g":330,"note":"≈ 1⅓ cups, a big mug-sized bowl"},{"c":"Crusty bread","g":100,"n":2,"step":1,"note":"2 thick slices (≈ ¼ loaf)","alt":"or 1 crusty bread roll"}],"tip":"A full bowl of soup with the bread on the side for dunking."},
+"l3":{"plate":[{"c":"Tuna & sweetcorn pasta","g":470,"note":"≈ 2½ cups, a large bowl (1 tin tuna each)"}],"tip":"One large bowl, about half pasta and half tuna and corn once it's all mixed through."},
+"l4":{"plate":[{"c":"Regular tortilla wrap (25 cm)","g":80,"n":2,"step":1,"note":"4 of the 8-pack between 2 people","alt":"or 1 large (30 cm) wrap, or 3 mini (15 cm) wraps"},{"c":"Fried halloumi","g":85,"note":"½ pack, ≈ 4 slices"},{"c":"Sliced peppers","g":160,"note":"1 pepper"},{"c":"Hummus","g":100,"note":"½ the 200 g tub, ≈ 2½ tbsp per wrap"}],"tip":"Spread the hummus first, then line the halloumi and peppers down the middle so each wrap rolls up tight."},
+"l5":{"plate":[{"c":"Jacket potato","g":220,"n":1,"step":0.5,"note":"1 large baking potato"},{"c":"Baked beans","g":210,"note":"½ tin"},{"c":"Grated cheddar","g":30,"note":"≈ ⅓ cup"},{"c":"Butter","g":10,"note":"a knob, ≈ 2 tsp"}],"tip":"Split the potato wide, butter it, heap the beans over, then add the cheese last so it melts."},
+"l6":{"plate":[{"c":"Ham & cheese sandwich","g":150,"n":1,"step":0.5,"note":"2 slices bread, 3 slices ham, 30 g cheddar"}],"tip":"One full sandwich per person, cut in half."},
+"l7":{"plate":[{"c":"Cheese toastie","g":120,"n":1,"step":0.5,"note":"2 slices bread, 40 g cheddar (≈ ½ cup grated)"}],"tip":"One toastie per person, cut diagonally; rest it a minute so the cheese doesn't all run out."},
+"l8":{"plate":[{"c":"Egg fried rice","g":450,"note":"≈ 2½ cups, a large bowl"}],"tip":"One large bowl, with the egg, peas and spring onion spread evenly through it."},
+"l9":{"plate":[{"c":"Lentil soup","g":300,"note":"≈ 1¼ cups, a standard soup bowl"}],"tip":"Fill a standard soup bowl to just below the rim."},
+"l10":{"plate":[{"c":"Pesto pasta","g":260,"note":"≈ 2 cups"},{"c":"Grated parmesan","g":15,"note":"≈ 2 tbsp"}],"tip":"Toss the pesto right through the pasta, then scatter the parmesan on top."},
+"l11":{"plate":[{"c":"Pitta bread","g":130,"n":2,"step":0.5,"note":"have a 3rd if hungry, the pack has 6","alt":"or 1 large Lebanese bread round"},{"c":"Hummus","g":100,"note":"½ the 200 g tub, ≈ 5 tbsp"},{"c":"Sliced cucumber","g":150,"note":"½ cucumber"}],"tip":"Tear the pitta into strips and put the hummus in the middle with the cucumber around it for dipping."},
+"d1":{"plate":[{"c":"Spaghetti","g":170,"note":"≈ 1½ cups cooked"},{"c":"Bolognese sauce","g":320,"note":"≈ 1⅓ cups"}],"tip":"Twirl the spaghetti into a nest and spoon the sauce into the middle, roughly equal volumes of pasta and sauce."},
+"d2":{"plate":[{"c":"Chicken & noodle stir-fry","g":600,"note":"≈ 3 cups: 1 fillet of chicken, ½ the veg and ½ the noodles each"}],"tip":"One wide bowl, and make sure each serve gets a fair share of the chicken, not just noodles."},
+"d3":{"plate":[{"c":"Margherita pizza","g":340,"n":1,"step":0.5,"note":"1 whole base, cut into 6 slices"}],"tip":"One whole pizza per person; scatter the basil on once it comes out of the oven."},
+"d4":{"plate":[{"c":"Salmon fillet","g":110,"n":1,"step":1},{"c":"Boiled new potatoes","g":200,"note":"≈ 5 small potatoes"},{"c":"Steamed broccoli","g":150,"note":"≈ 1½ cups florets"},{"c":"Olive oil","g":15,"note":"1 tbsp drizzled over"}],"tip":"Put the salmon in the centre with potatoes and broccoli either side, then squeeze the lemon and drizzle the oil over everything."},
+"d5":{"plate":[{"c":"Taco shells","g":35,"n":3,"step":1},{"c":"Beef & bean mince","g":200,"note":"≈ ¾ cup, about 65 g per taco"},{"c":"Grated cheddar","g":20,"note":"≈ ¼ cup"},{"c":"Shredded lettuce","g":100,"note":"≈ 2 cups"}],"tip":"Fill each shell about two-thirds full with mince, then add cheese and lettuce; any lettuce that doesn't fit goes on the side."},
+"d6":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Chickpea & spinach curry","g":250,"note":"≈ 1 cup"}],"tip":"Rice on one side with the curry ladled alongside, about 40% rice and 60% curry."},
+"d7":{"plate":[{"c":"Roast chicken","g":220,"note":"¼ of the bird, e.g. 1 leg or 1 breast"},{"c":"Roast potatoes","g":190,"note":"≈ 4–5 pieces"},{"c":"Boiled carrots","g":70,"note":"≈ 1 carrot"},{"c":"Peas","g":50,"note":"≈ ⅓ cup"},{"c":"Gravy","g":80,"note":"≈ ⅓ cup"}],"tip":"Chicken, potatoes and veg each take about a third of the plate; pour the gravy over the chicken and potatoes."},
+"d8":{"plate":[{"c":"Baked cod fillet","g":110,"n":1,"step":1},{"c":"Oven chips","g":200,"note":"≈ 250 g frozen, about ¼ of the bag"},{"c":"Peas","g":100,"note":"≈ ⅔ cup"},{"c":"Tartare sauce","g":30,"note":"2 tbsp"}],"tip":"Chips take half the plate and the fish and peas share the rest, with the tartare on the side for dipping."},
+"d9":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Chilli con carne","g":270,"note":"≈ 1 generous cup"}],"tip":"Rice on one side with the chilli spooned over half of it, about 40% rice and 60% chilli."},
+"d10":{"plate":[{"c":"Thick sausages","g":95,"n":2,"step":1},{"c":"Mashed potato","g":210,"note":"≈ 1 cup, a large scoop"},{"c":"Onion gravy","g":110,"note":"≈ ½ cup, onions included"}],"tip":"Mash in the middle with the sausages leaning on it, then pour the onion gravy over the top."},
+"d11":{"plate":[{"c":"Tomato pasta","g":290,"note":"≈ 2 cups"}],"tip":"Stir the sauce right through so every piece of pasta is coated, then serve about 2 cups in a pasta bowl."},
+"d12":{"plate":[{"c":"Jacket potato","g":220,"n":1,"step":0.5,"note":"1 large baking potato"},{"c":"Tuna, sweetcorn & mayo filling","g":200,"note":"≈ ¾ cup (½ tin tuna, ½ tin corn)"}],"tip":"Split the potato wide and pile the filling in so it spills over the sides."},
+"d13":{"plate":[{"c":"Veg & noodle stir-fry","g":430,"note":"≈ 2½ cups"}],"tip":"One wide bowl, about half noodles and half veg."},
+"d14":{"plate":[{"c":"Eggs (for the omelette)","g":150,"n":3,"step":1,"note":"1 omelette = 3 eggs"},{"c":"Grated cheddar","g":30,"note":"≈ ⅓ cup, scattered inside"},{"c":"Sliced tomato","g":120,"n":1,"step":1,"note":"1 medium tomato"}],"tip":"One 3-egg omelette per person, folded over the cheese and tomato and slid onto a warm plate."},
+"d15":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Lentil dahl","g":250,"note":"≈ 1 cup"}],"tip":"Rice on one side with the dahl spooned alongside, about 40% rice and 60% dahl."},
+"d16":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Bean chilli","g":240,"note":"≈ 1 cup"}],"tip":"Rice on one side with the chilli spooned over half of it, a little more chilli than rice."},
+"d17":{"plate":[{"c":"Fish fingers","g":125,"n":5,"step":1},{"c":"Oven chips","g":160,"note":"≈ 200 g frozen, a big handful"},{"c":"Baked beans","g":210,"note":"½ tin"}],"tip":"Chips take half the plate; keep the beans in their own corner so the chips stay crisp."},
+"d18":{"plate":[{"c":"Mac & cheese","g":310,"note":"≈ 1½ cups, a quarter of the dish"}],"tip":"Spoon out a quarter of the dish per person, including some of the crispy top."},
+"d19":{"plate":[{"c":"Sausage pasta bake","g":350,"note":"≈ 2 cups, a quarter of the dish (2 sausages' worth)"}],"tip":"Cut the bake into quarters in the dish and serve one quarter each."},
+"d20":{"plate":[{"c":"Chicken fettuccine Alfredo","g":340,"note":"≈ 2 cups (about ½ fillet of chicken)"}],"tip":"Twirl it into a pasta bowl and share the chicken pieces out evenly between plates."},
+"d21":{"plate":[{"c":"Beef lasagne","g":440,"note":"¼ of the dish, a slab about 10 × 12 cm"}],"tip":"Rest the lasagne 10 minutes, then cut the dish into quarters so the slices hold together."},
+"d22":{"plate":[{"c":"Mushroom risotto","g":350,"note":"≈ 1½ cups, a shallow bowlful"}],"tip":"One shallow bowlful each. Serve it straight away while it's still loose and creamy."},
+"d23":{"plate":[{"c":"Chicken parmigiana (crumbed fillet, sauce & cheese)","g":350,"n":1,"step":0.5,"note":"1 flattened breast fillet, about hand-sized"}],"tip":"One whole parmi each. Cut it in half for a lighter eater."},
+"d24":{"plate":[{"c":"Spaghetti carbonara","g":440,"note":"≈ a large pasta bowl (2½ cups)"}],"tip":"Twirl it into a warm bowl and eat straight away, because the sauce thickens as it sits."},
+"d25":{"plate":[{"c":"Steamed rice","g":350,"note":"≈ 2 cups"},{"c":"Beef & broccoli stir-fry","g":320,"note":"≈ 1½ cups incl. sauce"}],"tip":"Roughly half rice, half stir-fry. Spoon the sauce over the rice."},
+"d26":{"plate":[{"c":"Chicken chow mein","g":490,"note":"≈ a large bowl (3 cups)"}],"tip":"One big bowlful each. Use tongs so every serve gets its share of chicken and veg."},
+"d27":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Thai green chicken curry","g":230,"note":"≈ 1 cup with plenty of sauce"}],"tip":"About ⅖ rice, ⅗ curry. Ladle the sauce over the rice so it soaks in."},
+"d28":{"plate":[{"c":"Steamed rice","g":230,"note":"≈ 1⅓ cups"},{"c":"Sweet & sour pork","g":380,"note":"≈ 1½ cups incl. peppers, pineapple and sauce"}],"tip":"Rice on one side, pork and sauce on the other, about 40:60."},
+"d29":{"plate":[{"c":"Teriyaki salmon fillet","g":110,"n":1,"step":1,"note":"1 fillet (~150 g raw), glazed"},{"c":"Steamed rice","g":350,"note":"≈ 2 cups"},{"c":"Steamed broccoli","g":150,"note":"≈ 1½ cups florets"}],"tip":"Sit the salmon on the rice with the broccoli alongside, then drizzle the leftover glaze from the pan over the top."},
+"d30":{"plate":[{"c":"Singapore noodles","g":390,"note":"≈ a large bowl (2½ cups)"}],"tip":"One generous bowl each. Dig to the bottom of the wok so everyone gets prawns and egg."},
+"d31":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Chicken tikka masala","g":250,"note":"≈ 1 cup"}],"tip":"About ⅖ rice, ⅗ curry, with the sauce spooned over the rice."},
+"d32":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Butter chicken","g":240,"note":"≈ 1 cup"}],"tip":"Rice on one side and curry alongside, in roughly equal scoops."},
+"d33":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Chana masala","g":240,"note":"≈ 1 cup"}],"tip":"Roughly equal scoops of rice and chickpea curry."},
+"d34":{"plate":[{"c":"Steamed rice","g":180,"note":"≈ 1 cup"},{"c":"Lamb rogan josh","g":280,"note":"≈ 1 generous cup, 4–5 chunks of lamb"}],"tip":"Curry beside the rice with a spoonful of sauce over the top, about 4–5 chunks of lamb each."},
+"d35":{"plate":[{"c":"Regular tortilla wrap (25 cm)","n":2.67,"step":1,"note":"a pack of 8 shared by 3, so 2 or 3 each","alt":"or 2 large (30 cm) wraps, or 4–5 mini (15 cm) wraps"},{"c":"Fajita chicken, peppers & onion","g":240,"note":"≈ 1½ cups"},{"c":"Salsa","g":100,"note":"≈ ⅓ cup"}],"tip":"Share the filling evenly across your wraps, a big spoonful each, then top with salsa."},
+"d36":{"plate":[{"c":"Beef enchilada (rolled regular wrap)","g":360,"n":2,"step":1,"note":"2 rolled wraps incl. sauce and melted cheese","alt":"or 3 mini (15 cm) enchiladas"}],"tip":"Two enchiladas each, lifted out with the sauce and melted cheese around them."},
+"d37":{"plate":[{"c":"Tortilla chips","g":65,"note":"≈ 2 big handfuls"},{"c":"Beef & bean mince","g":180,"note":"≈ ¾ cup"},{"c":"Melted cheddar","g":35,"note":"≈ ⅓ cup grated"},{"c":"Salsa","g":100,"note":"≈ ⅓ cup"},{"c":"Sliced avocado","g":50,"note":"⅓ of an avocado"}],"tip":"A third of the tray each: chips underneath, mince and cheese on top, salsa and avocado to finish."},
+"d38":{"plate":[{"c":"Pitta bread","n":2,"step":0.5,"alt":"or 4 mini pittas"},{"c":"Spiced lamb","g":100,"note":"≈ ½ cup, a palm-sized pile"},{"c":"Tomato & onion salad","g":130,"note":"≈ 1 cup chopped"},{"c":"Tzatziki","g":110,"note":"≈ ½ cup"}],"tip":"Split everything between your two pittas: lamb first, then salad, with tzatziki on top."},
+"d39":{"plate":[{"c":"Halloumi slices","g":90,"n":4,"step":1,"note":"half the 180 g block"},{"c":"Roast peppers, courgette & cherry tomatoes","g":300,"note":"≈ 2 cups"},{"c":"Cous cous","g":190,"note":"≈ 1¼ cups"}],"tip":"Cous cous as the base, roast veg over it and the golden halloumi on top."},
+"d40":{"plate":[{"c":"Grilled chicken breast, sliced","g":170,"n":1,"step":1,"note":"1 fillet (~220 g raw)"},{"c":"Greek salad (cucumber, tomato, onion, olives)","g":440,"note":"≈ a large bowl (3 cups)"},{"c":"Crumbled feta","g":50,"note":"≈ ⅓ cup"}],"tip":"Salad as the base, feta crumbled over and the sliced chicken fanned on top."},
+"d41":{"plate":[{"c":"Cottage pie","g":460,"note":"a quarter of the dish, mince base with mash on top"}],"tip":"Cut the dish into quarters and lift each one out with a spatula to keep the mince and mash layers together."},
+"d42":{"plate":[{"c":"Thick sausages (baked in the batter)","g":95,"n":2,"step":1},{"c":"Yorkshire batter","g":120,"note":"a quarter of the tin"},{"c":"Gravy","g":70,"note":"≈ ¼ cup"}],"tip":"Cut into quarters so each serve has 2 sausages, then pour the gravy over."},
+"d43":{"plate":[{"c":"Fish pie","g":400,"note":"a quarter of the dish"}],"tip":"A quarter of the dish each. Scoop right to the bottom to get fish, peas and sauce under the mash."},
+"d44":{"plate":[{"c":"Burger bun","n":1,"step":1,"alt":"or 2 slider buns with the patty split in two"},{"c":"Beef patty","g":95,"n":1,"step":1,"note":"125 g raw mince, ~1.5 cm thick"},{"c":"Cheddar","g":20,"note":"1 slice, melted on the patty"},{"c":"Lettuce, tomato & onion","g":200,"note":"a few leaves and slices in the bun, the rest on the side"}],"tip":"One loaded cheeseburger each. The leftover lettuce and tomato make a quick side salad."},
+"d45":{"plate":[{"c":"Burger bun","n":1,"step":1,"alt":"or 2 slider buns"},{"c":"BBQ pulled pork","g":250,"note":"≈ 1 heaped cup"},{"c":"Coleslaw","g":100,"note":"≈ ¾ cup"}],"tip":"Pile as much pork into the bun as it will hold, and serve the rest alongside with the slaw."},
+"d46":{"plate":[{"c":"Regular tortilla wrap (25 cm)","n":2.67,"step":1,"note":"a pack of 8 shared by 3, so 2 or 3 each","alt":"or 2 large (30 cm) wraps, or 4–5 mini (15 cm) wraps"},{"c":"Buffalo chicken strips","g":110,"note":"⅔ of a fillet, sliced"},{"c":"Shredded lettuce","g":130,"note":"≈ 2½ cups shredded"},{"c":"Grated cheddar","g":20,"note":"≈ ¼ cup"},{"c":"Mayonnaise","g":15,"note":"1 tbsp"}],"tip":"Share the chicken evenly across your wraps, lettuce and cheese on top, then a thin line of mayo."},
+"d47":{"plate":[{"c":"Thick sausages, sliced","g":95,"n":2,"step":1},{"c":"Bean & tomato casserole","g":330,"note":"≈ 1⅓ cups"}],"tip":"Ladle into a shallow bowl, making sure each serve gets two sausages' worth of slices."},
+"d48":{"plate":[{"c":"Jacket potato","g":190,"n":1,"step":0.5,"note":"1 large baking potato (~250 g raw)"},{"c":"Beef & bean chilli","g":400,"note":"≈ 1½ cups"},{"c":"Grated cheddar","g":30,"note":"≈ ⅓ cup"}],"tip":"Split the potato wide open, pile the chilli in and over it, then scatter the cheese on top to melt."},
+"d49":{"plate":[{"c":"Creamy tomato gnocchi","g":450,"note":"≈ a large bowl, half the pan"},{"c":"Grated parmesan","g":15,"note":"≈ 2 tbsp"}],"tip":"Half the pan each, finished with the parmesan scattered over."},
+"d50":{"plate":[{"c":"Braised chicken thighs","g":130,"note":"≈ 1½ thigh fillets"},{"c":"Tomato, pepper, mushroom & olive sauce","g":200,"note":"≈ ¾ cup"}],"tip":"Spoon the sauce into a shallow bowl and sit the chicken on top."},
+"d51":{"plate":[{"c":"Penne arrabbiata","g":460,"note":"≈ a large pasta bowl (2½ cups)"}],"tip":"Half the pan each, with the torn basil scattered over just before serving."},
+"d52":{"plate":[{"c":"Prawn linguine","g":380,"note":"≈ a large pasta bowl with 6–8 prawns"}],"tip":"Twirl the pasta into the bowl first, then lift the prawns on top so they're shared evenly."},
+"d53":{"plate":[{"c":"Aubergine parmigiana","g":260,"note":"a quarter of the dish"}],"tip":"Rest it for 5 minutes, then cut into quarters so the layers hold together."},
+"d54":{"plate":[{"c":"Egg noodles","g":250,"note":"≈ 1½ cups"},{"c":"Ginger-soy broth","g":300,"note":"≈ 300 ml (1¼ cups)"},{"c":"Seared beef strips","g":110,"note":"≈ 150 g raw"},{"c":"Soft-boiled egg","n":1,"step":1,"note":"halved"}],"tip":"Noodles and broth in a deep bowl, beef and egg halves on top, finished with sliced spring onion."},
+"d55":{"plate":[{"c":"Steamed rice","g":230,"note":"≈ 1⅓ cups"},{"c":"Chicken katsu, sliced","g":160,"note":"⅔ of a crumbed fillet"},{"c":"Katsu curry sauce","g":160,"note":"≈ ⅔ cup"}],"tip":"Rice on one side with the sliced katsu leaning against it. Pour the sauce over the rice, not the crumb."},
+"d56":{"plate":[{"c":"Prawn pad thai","g":360,"note":"≈ a large bowl (2 cups)"},{"c":"Crushed peanuts","g":15,"note":"≈ 1½ tbsp"}],"tip":"One bowl each, with the crushed peanuts scattered over the top."},
+"d57":{"plate":[{"c":"Steamed rice","g":230,"note":"≈ 1⅓ cups"},{"c":"Korean glazed beef mince","g":150,"note":"≈ ⅔ cup"}],"tip":"Rice in the bowl with the beef spooned over one side, finished with spring onion and sesame seeds."},
+"d58":{"plate":[{"c":"Steamed rice","g":350,"note":"≈ 2 cups"},{"c":"Tofu & veg stir-fry","g":350,"note":"≈ 2 cups incl. ~130 g tofu (half the block)"}],"tip":"Half rice, half stir-fry. Make sure the tofu is split evenly."},
+"d59":{"plate":[{"c":"Rice noodles","g":170,"note":"≈ 1 cup"},{"c":"Pho broth","g":450,"note":"≈ 450 ml (1¾ cups)"},{"c":"Beef strips (cooked in the broth)","g":75,"note":"≈ 100 g raw, thinly sliced"},{"c":"Beansprouts","g":35,"note":"a small handful"}],"tip":"Noodles in first with the raw beef on top, then pour over the boiling broth and finish with sprouts and spring onion."},
+"d60":{"plate":[{"c":"Steamed rice","g":230,"note":"≈ 1⅓ cups"},{"c":"Sweet chilli chicken & veg","g":290,"note":"≈ 2 cups"}],"tip":"About ⅖ rice, ⅗ chicken and veg, with the sticky sauce spooned over the rice."},
+"d61":{"plate":[{"c":"Steamed rice","g":230,"note":"≈ 1⅓ cups"},{"c":"Saag paneer","g":190,"note":"≈ ¾ cup, a third of the paneer"}],"tip":"Rice on one side with the saag alongside. Make sure each serve gets its share of the paneer cubes."},
+"d62":{"plate":[{"c":"Beef madras","g":280,"note":"≈ 1¼ cups"},{"c":"Steamed rice","g":180,"note":"≈ 1 cup"}],"tip":"Roughly 40% rice, 60% curry — spoon the madras alongside rather than drowning the rice."},
+"d63":{"plate":[{"c":"Tandoori chicken","g":160,"note":"≈ 1½ thigh fillets"},{"c":"Steamed rice","g":230,"note":"≈ 1¼ cups"},{"c":"Naan","g":85,"n":0.67,"step":0.5,"note":"2 naan between 3 — a half each plus a share of the spare half"},{"c":"Sliced raw onion","g":50,"note":"a small handful"}],"tip":"Half the plate rice, chicken on top, naan on the side with a scatter of raw onion."},
+"d64":{"plate":[{"c":"Vegetable biryani","g":320,"note":"≈ 2 cups"}],"tip":"One generous bowl — fluff it up rather than packing it down."},
+"d65":{"plate":[{"c":"Chicken quesadilla (25 cm wrap, folded)","g":370,"n":2.67,"step":0.5,"note":"8 wraps between 3 — cut each in half, about 5 halves each","alt":"or 4 mini (15 cm) wraps"},{"c":"Salsa (to dip)","g":60,"note":"≈ 3 tbsp"}],"tip":"Stack the quesadilla halves and put the leftover salsa in a small dish for dipping."},
+"d66":{"plate":[{"c":"Steamed rice","g":230,"note":"≈ 1¼ cups"},{"c":"Spiced beef mince","g":100,"note":"≈ ½ cup"},{"c":"Black beans","g":80,"note":"≈ ½ cup"},{"c":"Salsa","g":100,"note":"≈ 5 tbsp"},{"c":"Grated cheddar","g":25,"note":"≈ ¼ cup"},{"c":"Sliced avocado","g":50,"note":"⅓ avocado"}],"tip":"Rice as the base (about a third of the bowl), mince, beans and salsa in sections, cheese and avocado on top."},
+"d67":{"plate":[{"c":"Oven chips","g":270,"note":"⅓ of the 1 kg bag, cooked"},{"c":"Beef & bean chilli","g":340,"note":"≈ 1½ cups"},{"c":"Grated cheddar","g":25,"note":"≈ ¼ cup"}],"tip":"Chips on the bottom, chilli over the middle, cheese scattered over while it's hot."},
+"d68":{"plate":[{"c":"Taco shells","g":50,"n":4,"step":1},{"c":"Flaked cod","g":75,"note":"⅔ of a fillet"},{"c":"Coleslaw","g":130,"note":"≈ 1 cup"},{"c":"Salsa","g":100,"note":"≈ 5 tbsp"},{"c":"Sliced avocado","g":50,"note":"⅓ avocado"}],"tip":"About 20 g fish per shell — slaw first, then fish, salsa and avocado."},
+"d69":{"plate":[{"c":"Chicken & chorizo paella","g":430,"note":"≈ 2 heaped cups · ¼ of the pan"}],"tip":"Scoop a quarter of the pan and make sure each plate gets its share of chicken and chorizo."},
+"d70":{"plate":[{"c":"Moussaka","g":500,"note":"¼ of the dish — a big square"}],"tip":"Rest it 10 min before cutting into quarters so the layers hold."},
+"d71":{"plate":[{"c":"Prawn & feta pasta","g":410,"note":"≈ 2 cups"}],"tip":"A pasta bowl filled level, not heaped, with the feta crumbled on top."},
+"d72":{"plate":[{"c":"Cous cous with roasted veg","g":420,"note":"≈ 2½ cups"},{"c":"Fried halloumi slices","g":85,"n":4,"step":1,"note":"½ the pack"}],"tip":"Cous cous and veg as the base, halloumi slices fanned over the top."},
+"d73":{"plate":[{"c":"Regular tortilla wrap (25 cm)","g":110,"n":2.67,"step":1,"note":"8-pack between 3 — 2 or 3 wraps each","alt":"or 4 mini (15 cm) wraps"},{"c":"Shawarma chicken","g":125,"note":"≈ 1 thigh fillet, sliced"},{"c":"Garlic yoghurt","g":35,"note":"≈ 2 tbsp"},{"c":"Sliced cucumber","g":100,"note":"⅓ cucumber"},{"c":"Sliced tomato","g":80,"note":"⅔ tomato"}],"tip":"Split the chicken across your wraps — about 45 g each — piled with cucumber, tomato and garlic yoghurt."},
+"d74":{"plate":[{"c":"Falafel","g":170,"n":5,"step":1,"note":"small 3–4 cm patties"},{"c":"Pitta bread","g":130,"n":2,"step":0.5,"note":"warmed, cut into triangles"},{"c":"Hummus","g":65,"note":"≈ 3 tbsp"},{"c":"Chopped cucumber & tomato","g":180,"note":"≈ 1½ cups"}],"tip":"Falafel and salad take half the plate, pitta and a big dollop of hummus the rest."},
+"d75":{"plate":[{"c":"Lamb koftas","g":160,"n":3,"step":1,"note":"finger-length logs"},{"c":"Pitta bread","g":130,"n":2,"step":0.5,"note":"warmed"},{"c":"Greek yoghurt","g":35,"note":"≈ 2 tbsp"},{"c":"Cucumber","g":100,"note":"⅓ cucumber"}],"tip":"Three koftas with a pitta either side, a dollop of yoghurt and cucumber alongside."},
+"d76":{"plate":[{"c":"Chicken & chickpea tagine","g":310,"note":"≈ 1½ cups"},{"c":"Cous cous","g":130,"note":"≈ ¾ cup"}],"tip":"Cous cous as a bed, with the tagine spooned over the top."},
+"d77":{"plate":[{"c":"Beef pide slices","g":360,"n":4,"step":1,"note":"⅔ of a pide — cut each pide into 6"}],"tip":"Two pides feed three: cut each into 6 and take 4 slices."},
+"d78":{"plate":[{"c":"Beef steak","g":190,"n":1,"step":0.5,"note":"≈ 250 g raw, a hand-sized steak"},{"c":"Oven chips","g":400,"note":"half the 1 kg bag, cooked — about 250 g is plenty for a lighter plate"},{"c":"Buttered mushrooms","g":50,"note":"≈ ½ cup"},{"c":"Peas","g":50,"note":"≈ ⅓ cup"}],"tip":"Steak on a quarter of the plate, chips on half, mushrooms and peas in the rest."},
+"d79":{"plate":[{"c":"Shepherd's pie","g":440,"note":"¼ of the dish"}],"tip":"Cut into quarters — one quarter each, mash and filling together."},
+"d80":{"plate":[{"c":"Chicken & leek pie (filling + pastry lid)","g":300,"note":"¼ of the pie"}],"tip":"Quarter the pie so every portion gets a piece of the pastry lid over its filling."},
+"d81":{"plate":[{"c":"Ham slices","g":60,"n":4,"step":1},{"c":"Fried eggs","g":100,"n":2,"step":1},{"c":"Oven chips","g":400,"note":"half the 1 kg bag, cooked — about 250 g is plenty for a lighter plate"},{"c":"Peas","g":50,"note":"≈ ⅓ cup"}],"tip":"Two eggs on the ham, with chips and peas alongside."},
+"d82":{"plate":[{"c":"BBQ chicken pizza (28–30 cm)","g":520,"n":1,"step":0.5,"note":"a whole pizza — 8 slices"}],"tip":"One pizza each, cut into 8 slices."},
+"d83":{"plate":[{"c":"Bacon mac & cheese","g":340,"note":"≈ 1¾ cups · ¼ of the dish"}],"tip":"A quarter of the dish, which is about a level pasta bowl."},
+"d84":{"plate":[{"c":"Crusty baguette","g":135,"n":0.5,"step":0.5,"note":"half a loaf, split lengthways"},{"c":"Cheesy steak, onion & mushroom filling","g":350,"note":"≈ 1½ cups"}],"tip":"Half a baguette each, split and packed with half the filling."},
+"d85":{"plate":[{"c":"Southern fried chicken","g":180,"note":"≈ 1½ thigh fillets"},{"c":"Coleslaw","g":130,"note":"≈ 1 cup"},{"c":"Oven chips","g":270,"note":"⅓ of the 1 kg bag, cooked"}],"tip":"Chicken and chips share most of the plate, with a heaped cup of slaw on the side."},
+"d86":{"plate":[{"c":"Chicken & rice soup","g":500,"note":"≈ 2 cups (500 ml), a big bowl"}],"tip":"Ladle from the bottom so everyone gets chicken and rice, not just broth."},
+"d87":{"plate":[{"c":"Beef & potato stew","g":430,"note":"≈ 1¾ cups"},{"c":"Dumplings","g":75,"n":2,"step":1}],"tip":"A deep bowl of stew with two dumplings sitting on top."},
+"d88":{"plate":[{"c":"Tuna pasta bake","g":370,"note":"≈ 2 cups · ¼ of the dish"}],"tip":"Cut into quarters and serve one quarter each."},
+"d89":{"plate":[{"c":"Baked potato (large)","g":190,"n":1,"step":0.5},{"c":"Crispy bacon","g":40,"note":"≈ 2 rashers, chopped"},{"c":"Grated cheddar","g":40,"note":"≈ ⅓ cup"},{"c":"Sour cream","g":50,"note":"≈ 2½ tbsp"},{"c":"Spring onion, sliced","g":15,"n":1,"step":1}],"tip":"One potato each, split and fluffed, then loaded with half the toppings."},
+"s1":{"plate":[{"c":"Hummus","g":100,"note":"half the tub"},{"c":"Carrot sticks","g":160,"n":2,"step":1,"note":"2 medium carrots"}],"tip":"Half the tub of hummus with two carrots cut into sticks."},
+"s2":{"plate":[{"c":"Crackers","g":50,"n":5,"step":1},{"c":"Cheddar","g":50,"note":"5 thin slices"}],"tip":"Five crackers, each with a slice of cheese."},
+"s4":{"plate":[{"c":"Yoghurt pot","g":120,"n":1,"step":1}],"tip":"One pot, straight from the fridge."},
+"s5":{"plate":[{"c":"Toast","g":35,"n":1,"step":1,"note":"1 slice"},{"c":"Peanut butter","g":15,"note":"1 tbsp"}],"tip":"One slice, with the peanut butter spread edge to edge."},
+"s6":{"plate":[{"c":"Popcorn","g":50,"note":"half the bag — ≈ 5 cups popped"}],"tip":"Tip your half into a bowl rather than eating from the bag."},
+"s7":{"plate":[{"c":"Crumpets","g":150,"n":3,"step":1},{"c":"Butter","g":10,"note":"≈ 2 tsp"}],"tip":"Spread the butter thinly across all three while they're hot."},
+"s8":{"plate":[{"c":"Celery stick","g":20,"n":0.5,"step":0.5,"note":"half a large stick, cut into 2 short lengths"},{"c":"Peanut butter","g":15,"note":"1 tbsp"}],"tip":"Fill the groove of the celery with the peanut butter."},
+"s9":{"plate":[{"c":"Greek yoghurt","g":200,"note":"≈ ¾ cup"},{"c":"Honey","g":20,"note":"1 tbsp"}],"tip":"Drizzle the honey over the top or swirl it through."},
+"s10":{"plate":[{"c":"Carrot sticks","g":80,"n":1,"step":1,"note":"1 carrot"},{"c":"Cucumber sticks","g":150,"note":"½ cucumber"},{"c":"Capsicum strips","g":80,"note":"½ capsicum"},{"c":"Hummus","g":100,"note":"half the tub"}],"tip":"Half the veg and half the tub each, which is plenty of crunch for the hummus."},
+"s11":{"plate":[{"c":"Boiled eggs","g":100,"n":2,"step":1}],"tip":"Two eggs, halved and seasoned with salt and pepper."},
+"s12":{"plate":[{"c":"Mixed nuts","g":50,"note":"a heaped small handful, ≈ ⅓ cup"}],"tip":"Weigh or pre-portion it so a handful stays one serve."},
+"s13":{"plate":[{"c":"Rice cakes","g":50,"n":6,"step":1},{"c":"Peanut butter","g":15,"note":"1 tbsp"}],"tip":"Spread thinly, roughly ½ tsp per cake."},
+"s14":{"plate":[{"c":"Cheddar","g":60,"note":"≈ 3 sandwich slices, or 2 matchbox-sized chunks"},{"c":"Cucumber slices","g":300,"note":"1 whole cucumber"}],"tip":"Slice the cheese thin and spread it across the cucumber rounds so it goes further."},
+"s15":{"plate":[{"c":"Steamed edamame","g":75,"note":"a small bowl, ≈ ½ cup shelled (half the 150 g)"}],"tip":"Tip one small bowl out and put the rest back; a pinch of salt is all it needs."},
+"s16":{"plate":[{"c":"Cottage cheese","g":200,"note":"≈ ¾ cup"},{"c":"Cherry tomatoes, halved","g":100,"note":"≈ 6–7 cherry tomatoes"}],"tip":"Spoon the cottage cheese in first, scatter the tomatoes over and finish with cracked pepper."},
+"s17":{"plate":[{"c":"Guacamole","g":75,"note":"≈ ½ avocado, 3 tbsp"},{"c":"Carrot sticks","g":80,"note":"1 medium carrot"}],"tip":"Half the guac and one carrot's worth of sticks each; mash it just before eating so it stays green."},
+"s18":{"plate":[{"c":"Roasted chickpeas","g":85,"note":"≈ ⅔ cup, half the tin"}],"tip":"Split the tray in half while they're hot and let them cool so they stay crunchy."},
+"s19":{"plate":[{"c":"Flavoured tuna","g":95,"note":"1 small tin (95 g)"},{"c":"Crackers","g":50,"n":5,"step":1,"note":"≈ 50 g, half the pack"}],"tip":"Eat the tuna straight from the tin with the crackers on the side, so there's no fridge or plate needed."},
+"s20":{"plate":[{"c":"Beef jerky","g":50,"note":"1 small pack (50 g)"}],"tip":"One pack is the serve, so don't open a second."},
+"s21":{"plate":[{"c":"High-protein yoghurt pot","g":160,"n":1,"step":1,"note":"1 pot (160 g)"}],"tip":"Eat it straight from the pot; it's a complete serve on its own."},
+"s22":{"plate":[{"c":"Protein milk","n":1,"step":1,"note":"1 bottle (350 ml)"}],"tip":"Drink one bottle, chilled, after the gym or mid-afternoon."},
+"s23":{"plate":[{"c":"Cheese stick","g":20,"n":1,"step":1},{"c":"Mixed nuts","g":20,"note":"a small handful (≈ 15 almonds)"}],"tip":"Pre-pack the 20 g of nuts in a small container instead of eating from the bag."},
+"s24":{"plate":[{"c":"Ham slices","g":45,"n":3,"step":1,"note":"≈ 45 g"},{"c":"Cheddar","g":20,"note":"3 thin strips, one per roll"}],"tip":"Three roll-ups, each one a slice of ham wrapped around a thin strip of cheese."},
+"t1":{"plate":[{"c":"Dark chocolate","g":20,"note":"2 rows of a block"}],"tip":"Break off two rows, put the block away, then sit down to eat them."},
+"t2":{"plate":[{"c":"Tim Tam","n":1,"step":1},{"c":"Milk in your tea or coffee","g":30,"note":"a 30 ml splash"}],"tip":"One biscuit with your cuppa, and put the packet back in the pantry first."},
+"t3":{"plate":[{"c":"Ice cream","g":65,"note":"1 level scoop (≈ ½ cup, 125 ml)"}],"tip":"Serve one level scoop in a small bowl, never straight from the tub."},
+"t4":{"plate":[{"c":"Choc yoghurt mousse","g":170,"note":"≈ ⅔ cup, a small bowl or ramekin"}],"tip":"Serve it in a small ramekin so it looks and feels like a proper dessert."},
+"t5":{"plate":[{"c":"Hot chocolate","g":260,"note":"1 mug (250 ml milk + 1 tbsp drinking chocolate)"}],"tip":"Use one standard mug; a huge café-style mug quietly doubles it."},
+"t6":{"plate":[{"c":"Choc-chip cookies","n":2,"step":1}],"tip":"Put two on a plate and the packet back in the pantry."},
+"t7":{"plate":[{"c":"Mini ice cream on a stick","n":1,"step":1}],"tip":"One mini from the multipack is the serve."},
+"t8":{"plate":[{"c":"Freddo Frog","n":1,"step":1}],"tip":"One frog is the serve, so leave the rest of the share bag closed."},
+"t9":{"plate":[{"c":"Toast","g":35,"n":1,"step":1,"note":"1 slice of bread"},{"c":"Choc hazelnut spread","g":20,"note":"1 level tbsp"}],"tip":"Level the tablespoon before you spread it, because heaped ones are easily double."},
+"t10":{"plate":[{"c":"Choc mug cake","g":85,"note":"1 mug cake"}],"tip":"Eat it warm from the mug; one mug is the whole serve."},
+"t11":{"plate":[{"c":"Creamed rice","g":210,"note":"½ tin (≈ ¾ cup)"}],"tip":"Split the tin between two bowls and dust with cinnamon if you like."},
+"t12":{"plate":[{"c":"Icy pole","n":1,"step":1}],"tip":"One icy pole straight from the freezer is the serve."},
+"t13":{"plate":[{"c":"Protein bar","g":60,"n":1,"step":1}],"tip":"One bar; have it with a cuppa to make it feel like a treat."},
+"t14":{"plate":[{"c":"Protein pudding pot","g":160,"n":1,"step":1}],"tip":"Eat one pot chilled, straight from the fridge."},
+"t15":{"plate":[{"c":"Diet jelly cup","n":1,"step":1}],"tip":"One cup; they're light, so have it slowly with a spoon."},
+"k1":{"plate":[{"c":"Large thin-crust pizza slices","n":3,"step":1,"note":"BBQ chicken or margherita"},{"c":"Side salad","g":80,"note":"a big handful, light dressing"}],"tip":"Plate your 3 slices with the salad and put the box away; skip the garlic bread and dessert pizza."},
+"k2":{"plate":[{"c":"Single-patty burger","n":1,"step":1},{"c":"Small chips","g":100,"note":"1 small serve"},{"c":"Zero-sugar drink","n":1,"step":1,"note":"can or small cup"}],"tip":"Order a single patty and small chips; a double and a shake can clear 1,500 kcal."},
+"k3":{"plate":[{"c":"¼ peri-peri chicken (breast)","n":1,"step":1,"alt":"or 1 chicken burger"},{"c":"Regular sides (corn, rice or garden salad)","n":2,"step":1,"note":"e.g. corn on the cob + spicy rice"}],"tip":"Pick corn, rice or salad for your two sides instead of chips and garlic bread."},
+"k4":{"plate":[{"c":"Nigiri pieces","n":10,"step":1,"note":"8–10 pieces","alt":"or 3 salmon/chicken hand rolls"}],"tip":"Stick to 8–10 nigiri or a few hand rolls, and go easy on the tempura and mayo-heavy rolls."},
+"k5":{"plate":[{"c":"Chicken stir-fry or red curry","g":350,"note":"1 standard takeaway container"},{"c":"Steamed jasmine rice","g":200,"note":"≈ 1 cup"}],"tip":"About ⅓ rice and ⅔ stir-fry or curry; if it's pad thai, share one."},
+"k6":{"plate":[{"c":"Tandoori or tikka chicken","g":220,"note":"≈ 6–8 pieces, or ½ a takeaway container"},{"c":"Steamed basmati rice","g":200,"note":"≈ 1 cup"},{"c":"Plain naan","n":0.5,"step":0.5,"note":"½ a naan"}],"tip":"Chicken, a cup of rice and half a plain naan; butter chicken with garlic naan can hit 1,400 kcal."},
+"k7":{"plate":[{"c":"Beef & black bean or chicken & cashew","g":350,"note":"1 standard takeaway container"},{"c":"Steamed rice","g":200,"note":"≈ 1 cup"}],"tip":"Order steamed rice instead of fried, and skip the spring roll combo."},
+"k8":{"plate":[{"c":"Grilled fish fillet","g":150,"n":1,"step":1,"note":"≈ 150 g cooked"},{"c":"Small chips","g":150,"note":"1 small serve; a shop 'minimum chips' often feeds two"},{"c":"Side salad","g":100,"note":"a big handful"}],"tip":"Ask for grilled fish and small chips, and fill half the plate with salad."},
+"k9":{"plate":[{"c":"Small chicken kebab (wrap)","n":1,"step":1,"note":"extra salad, garlic sauce","alt":"or ½ a regular kebab"}],"tip":"Order the small size with extra salad; a full HSP is 1,500–2,000 kcal, so split one."},
+"k10":{"plate":[{"c":"6-inch sub on wholemeal","n":1,"step":1,"note":"chicken or steak, loads of salad, light sauce","alt":"a footlong = 2 serves"}],"tip":"Pile on the salad and pick a light sauce; a footlong doubles everything."},
+"k11":{"plate":[{"c":"Protein (chicken, salmon or beef)","g":120,"note":"a palm-sized portion"},{"c":"Rice","g":200,"note":"≈ 1 cup"},{"c":"Salad & veg toppings","g":150,"note":"2 big handfuls"},{"c":"Sauce","g":20,"note":"≈ 1 tbsp, on the side"}],"tip":"Load the bowl with salad and veg and keep the creamy sauce and extra cheese to a tablespoon."}
+});
+function roundG(g){ return g<100?Math.max(5,Math.round(g/5)*5):Math.round(g/10)*10; }
+function roundStep(v,step){ step=step||1; return Math.max(step,Math.round(v/step)*step); }
+function fracText(v){ const w=Math.floor(v+1e-9), r=Math.round((v-w)*4)/4; const f=r===0.25?"¼":r===0.5?"½":r===0.75?"¾":""; return (w||!f?String(w||0):"")+f; }
+/* plate for someone eating f× a standard serve: [{label, amount, g}] */
+function plateFor(m,f){
+  const spec=PORTIONS[m.id]; if(!spec||!spec.plate||!spec.plate.length) return null;
+  return spec.plate.map(c=>{
+    if(c.n!=null){ const n=roundStep(c.n*f,c.step||1); return {label:c.c,amount:fracText(n)+" ×",g:c.g?roundG(c.g*n/c.n):0,note:Math.abs(f-1)<0.05?c.note:"",alt:c.alt||""}; }
+    const g=roundG((c.g||0)*f); return {label:c.c,amount:g+" g",g,note:Math.abs(f-1)<0.05?c.note:"",alt:""};
+  });
+}
+function portionSummary(m,f){
+  const pl=plateFor(m,f);
+  if(!pl) return `${fmtX(f)} of a standard serve (recipe ÷ ${m.serves||2})`;
+  return pl.slice(0,3).map(x=>x.amount.endsWith("×")?x.amount.replace(" ×","")+" "+x.label.toLowerCase():x.amount+" "+x.label.toLowerCase()).join(" + ")+(pl.length>3?" + …":"");
+}
+function portionTableHtml(m){
+  const pm=scalesWithPortion(m), ps=pm?profiles():[], base=plateFor(m,1), x=mealMacros(m), spec=PORTIONS[m.id]||{};
+  const cols=[{h:ps.length?"Standard":"Per serve",f:1}].concat(ps.map(p=>({h:`${esc(p.emoji)} ${esc(p.name)} <span class="muted">${fmtX(portionOf(p))}</span>`,f:portionOf(p)})));
+  if(!base){
+    if(!pm) return "";
+    return `<div class="recipe-h">🍽️ Portions</div><p class="note" style="margin:0">One standard serve = the recipe split into ${m.serves||2} equal portions (~${x.kcal} kcal).`+
+      (ps.length?" "+ps.map(p=>`${esc(p.name)}: ${fmtX(portionOf(p))} (~${Math.round(x.kcal*portionOf(p))} kcal)`).join(" · "):"")+`</p>`;
+  }
+  const plates=cols.map(c=>plateFor(m,c.f));
+  const rows=base.map((row,i)=>`<tr><td>${esc(row.label)}${row.alt&&cols.length===1?`<div class="muted small">${esc(row.alt)}</div>`:""}</td>`+
+    plates.map(pl=>`<td><b>${esc(pl[i].amount.replace(" ×",""))}</b>${pl[i].note?`<div class="muted small">${esc(pl[i].note)}</div>`:""}</td>`).join("")+`</tr>`).join("");
+  // plate total only when every item has a weight (a takeaway "3 slices + salad" shouldn't read as ~80 g)
+  const tot=base.every(r=>r.g>0)?plates.map(pl=>pl.reduce((s,r)=>s+(r.g||0),0)):[0];
+  return `<div class="recipe-h">🍽️ ${pm?"Portions":"Portion"}</div>
+    <div class="ptable-wrap"><table class="ptable"><thead><tr><th></th>${cols.map(c=>`<th>${c.h}</th>`).join("")}</tr></thead><tbody>${rows}
+    ${tot[0]?`<tr class="tot-row"><td>Plate total</td>${tot.map(g=>`<td>~${roundG(g)} g</td>`).join("")}</tr>`:""}
+    ${x.kcal?`<tr class="tot-row"><td>Calories</td>${cols.map(c=>`<td>~${Math.round(x.kcal*c.f)}</td>`).join("")}</tr>`:""}</tbody></table></div>
+    ${spec.tip?`<p class="note" style="margin:6px 0 0">💡 ${esc(spec.tip)}</p>`:""}
+    ${base.some(r=>r.alt)&&cols.length>1?`<p class="note" style="margin:4px 0 0">${base.filter(r=>r.alt).map(r=>`${esc(r.label)}: ${esc(r.alt)}`).join(" · ")}</p>`:""}`;
+}
 function unitPrice(name){ const p=PACKS[name]; return p?p[1]/p[0]:0; }
 function mealCost(m){ if(m&&m.takeaway) return m.cost||0; return (m&&m.ingredients)?m.ingredients.reduce((s,i)=>s+unitPrice(i.name)*(i.qty||0),0):0; }
 /* Takeaway nights aren't on the shopping list — this is their separate "eating out" estimate for the week. */
-function weeklyTakeawayCost(){ let t=0; DAYS.forEach(d=>SLOTS.forEach(s=>state.plan[d.k][s.k].forEach(id=>{ const m=mealById(id); if(m&&m.takeaway) t+=(m.cost||0)*state.people; }))); return t; }
+function weeklyTakeawayCost(){ let t=0; DAYS.forEach(d=>SLOTS.forEach(s=>state.plan[d.k][s.k].forEach(id=>{ const m=mealById(id); if(m&&m.takeaway) t+=(m.cost||0)*(entryPid(id)?1:eaters().length); }))); return t; }
 /* Pack-based: what you actually buy = whole packs. */
 function lineCostFor(name,qty){ const p=PACKS[name]; return p?Math.ceil((qty||0)/p[0])*p[1]:0; }
 function weeklyShopCost(){ return buildList().filter(i=>!state.have[i.key]).reduce((s,i)=>s+lineCostFor(i.name,i.qty),0); }
@@ -1497,7 +1726,7 @@ function listAsText(withTicks){
   const byCat={}; items.forEach(i=>(byCat[i.cat]=byCat[i.cat]||[]).push(i));
   const cats=Object.keys(byCat).sort((a,b)=>CAT_ORDER.indexOf(a)-CAT_ORDER.indexOf(b));
   const wd=weekDates(); const f=new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short"});
-  let txt="Shopping List — w/c "+f.format(wd.mon)+" (for "+state.people+" "+(state.people==1?"person":"people")+")\n\n";
+  let txt="Shopping List — w/c "+f.format(wd.mon)+" ("+servesText(true)+")\n\n";
   cats.forEach(cat=>{
     txt+=cat.toUpperCase()+"\n";
     byCat[cat].sort((a,b)=>a.name.localeCompare(b.name)).forEach(i=>{
@@ -1511,12 +1740,12 @@ function listAsText(withTicks){
 
 function planAsText(){
   const wd=weekDates(); const f=new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short"});
-  let txt="MEAL PLAN — w/c "+f.format(wd.mon)+" (for "+state.people+" "+(state.people==1?"person":"people")+")\n\n";
+  let txt="MEAL PLAN — w/c "+f.format(wd.mon)+" ("+servesText(true)+")\n\n";
   let any=false;
   for(const d of DAYS){
     const lines=[];
     for(const s of SLOTS){
-      const names=(state.plan[d.k][s.k]||[]).map(id=>{const m=mealById(id); return m?m.name:null;}).filter(Boolean);
+      const names=(state.plan[d.k][s.k]||[]).map(id=>{const m=mealById(id); if(!m) return null; const o=profileById(entryPid(id)); return m.name+(o?" ("+o.name+")":"");}).filter(Boolean);
       if(names.length) lines.push("  "+s.l+": "+names.join(", "));
     }
     if(lines.length){ any=true; txt+=d.l+" ("+f.format(wd[d.k])+")\n"+lines.join("\n")+"\n\n"; }
@@ -1585,8 +1814,9 @@ function renderWeek(){
       const chips=ids.map((id,idx)=>{
         const m=mealById(id);
         if(!m) return "";
-        return `<div class="chip-meal" data-id="${id}" title="Tap for recipe"><span class="cm-emoji">${m.emoji||"🍽️"}</span>
-          <span class="cm-name">${esc(m.name)}</span>
+        const own=profileById(entryPid(id));
+        return `<div class="chip-meal${own?' personal':''}" data-id="${esc(id)}" title="${own?esc(own.name)+"'s — ":""}Tap for recipe & portions"><span class="cm-emoji">${m.emoji||"🍽️"}</span>
+          <span class="cm-name">${esc(m.name)}${own?` <span class="own" title="Just for ${esc(own.name)}">${esc(own.emoji)}</span>`:""}</span>
           <span class="x" data-day="${d.k}" data-slot="${s.k}" data-idx="${idx}" title="Remove">✕</span></div>`;
       }).join("");
       return `<div class="slot${ids.length?'':' empty'}" data-day="${d.k}" data-slot="${s.k}" style="--type:${typeColor(s.k==='snack'?'snack':s.k)}">
@@ -1606,13 +1836,19 @@ function renderWeek(){
 }
 
 /* ---------- Shopping list build ---------- */
+/* Serves to buy for one plan entry: a personal item = 1 serve for that person; a shared main meal = everyone's portions added up;
+   shared snacks/treats = one each. */
+function entryServes(id,m,E){
+  if(entryPid(id)) return 1;
+  return scalesWithPortion(m)?E.reduce((s,e)=>s+e.pm,0):E.length;
+}
 function buildList(){
-  const map=new Map();
+  const map=new Map(), E=eaters();
   for(const d of DAYS){
     for(const s of SLOTS){
       for(const id of state.plan[d.k][s.k]){
         const m=mealById(id); if(!m) continue;
-        const scale=state.people/(m.serves||2);
+        const scale=entryServes(id,m,E)/(m.serves||2);
         for(const ing of m.ingredients){
           const key=ing.name.trim().toLowerCase()+"|"+(ing.unit||"")+"|"+ing.cat;
           const cur=map.get(key)||{key,name:ing.name,unit:ing.unit||"",cat:ing.cat,qty:0,meals:new Set()};
@@ -1634,12 +1870,19 @@ function shopMetaHtml(items){
   let mealCount=0; DAYS.forEach(d=>SLOTS.forEach(s=>mealCount+=state.plan[d.k][s.k].length));
   const ticked=items.filter(i=>state.checked[i.key]).length;
   const wd=weekDates(); const f=new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short"});
-  return `w/c ${f.format(wd.mon)} · ${items.length} items · ${mealCount} meals · for ${state.people} ${state.people==1?'person':'people'} · <b>${ticked}</b> ticked`;
+  return `w/c ${f.format(wd.mon)} · ${items.length} items · ${mealCount} meals · ${servesText()} · <b>${ticked}</b> ticked`;
+}
+/* "for Jason 1.3× + Sam 0.8× = 2.1 serves" when profiles set portions; plain "for 2 people" otherwise */
+function servesText(plain){
+  const E=eaters(), q=plain?(s=>s):esc;
+  if(!profiles().length) return `for ${E.length} ${E.length==1?'person':'people'}`;
+  const guests=E.filter(e=>!e.pid).length;
+  return `for ${E.filter(e=>e.pid).map(e=>q(e.name)+" "+fmtX(e.pm)).join(" + ")}${guests?` + ${guests} guest${guests>1?"s":""}`:""} = ${Math.round(householdServes()*10)/10} serves`;
 }
 function shopTotalHtml(){
   const need=weeklyShopCost(), owned=fullBasketCost()-need;
   return `<div class="ptotal">🛒 To buy this shop <b>~${fmtMoney(need)}</b>`+
-    `<span>for ${state.people} ${state.people==1?'person':'people'} · whole-pack Woolworths prices`+
+    `<span>${servesText()} · whole-pack Woolworths prices`+
     (owned>0.005?` &nbsp;·&nbsp; <b style="color:var(--muted);font-size:12px">${fmtMoney(owned)} of "already have" excluded</b>`:``)+
     (weeklyTakeawayCost()>0?` &nbsp;·&nbsp; 🥡 plus ~${fmtMoney(weeklyTakeawayCost())} takeaway (not on this list)`:``)+
     `<br>Tap a price to mark something you <b>already have</b> — it drops off this total. Ticking items off as you shop won't change it.</span></div>`;
@@ -1774,6 +2017,7 @@ function openRecipe(id){
       `<div class="recipe-title">${m.emoji||"🥡"} ${esc(m.name)}</div>`+
       `<div class="recipe-sub">Takeaway night · ~${fmtMoney(m.cost||0)} per person · not on your shopping list</div>`+macroLine+
       (fx?`<p class="note">${esc(pm.name)}'s takeaway budget: <b>under ${fmtInt(fx.takeawayKcal)} kcal</b> — this one is ${x.kcal<=fx.takeawayKcal?'<b style="color:var(--s)">within it ✓</b>':'<b style="color:var(--accent)">over it</b>'}.</p>`:"")+
+      portionTableHtml(m)+
       `<div class="recipe-h">🎯 Keep it in budget</div><p style="margin:0; line-height:1.5">${esc(m.tip||"")}</p>`+
       `<div class="recipe-h">💡 General takeaway tips</div><ul class="recipe-ings"><li>Order protein-first (chicken, beef, fish) — it fills you up.</li><li>Pick one carb: rice <i>or</i> chips <i>or</i> bread.</li><li>Sauces and sides are where the sneaky calories hide.</li><li>Have water or a zero-sugar drink.</li></ul>`;
     document.getElementById("recipeModal").classList.add("show"); return;
@@ -1788,6 +2032,7 @@ function openRecipe(id){
     `<div class="recipe-sub">${esc(m.type)}${mealCuisine(m)?' · '+esc(mealCuisine(m)):''} · serves ${m.serves} · approx ~${fmtMoney(mealCost(m))}</div>`+
     macroLine+
     (m.type==="snack"&&isGrab(m)?`<p class="note">🎒 <b>Grab &amp; go</b> — no prep at work and fine in a bag or lunchbox. Pack a few on Sunday night.</p>`:"")+
+    portionTableHtml(m)+
     (m.type==="treat"&&fx&&fx.treatDays.length?`<p class="note">${esc(pm.name)}'s treat budget: <b>under ${fmtInt(fx.treatKcal)} kcal</b> — ${x.kcal<=fx.treatKcal?'<b style="color:var(--s)">fits ✓</b>':'<b style="color:var(--accent)">a bit over — keep it small</b>'}.</p>`:"")+
     `<div class="recipe-h">🛒 Ingredients</div>`+
     `<ul class="recipe-ings">${ings}</ul>`+
@@ -2074,7 +2319,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const id=b.dataset.del;
     if(!confirm("Delete this meal? It will be removed from your plan too.")) return;
     state.custom=state.custom.filter(m=>m.id!==id);
-    DAYS.forEach(d=>SLOTS.forEach(s=>{ state.plan[d.k][s.k]=state.plan[d.k][s.k].filter(x=>x!==id); }));
+    DAYS.forEach(d=>SLOTS.forEach(s=>{ state.plan[d.k][s.k]=state.plan[d.k][s.k].filter(x=>entryMealId(x)!==id); }));
     _sugg=null;
     save(); renderCustomList(); renderLibrary(); renderWeek(); renderShopping();
   });
@@ -2657,69 +2902,120 @@ function beep(){ try{ const C=window.AudioContext||window.webkitAudioContext; if
 /* ---- meal suggestions that hit the calorie & protein target (treats/takeaway built in) ---- */
 function poolOf(type){ return allMeals().filter(m=>m.type===type && !m.takeaway && mealMacros(m).kcal>0); }
 function suggestDay(p,opt){
-  opt=opt||{}; const t=targetsFor(p), fx=flexFor(p);
+  opt=opt||{}; const t=targetsFor(p), fx=flexFor(p), pm=portionOf(p);
   const fixed=opt.fixed||{breakfast:[],lunch:[],dinner:[],snack:[]}, avoid=new Set(opt.avoid||[]), used=opt.used||null;
   const P={breakfast:poolOf("breakfast"),lunch:poolOf("lunch"),dinner:poolOf("dinner"),snack:poolOf("snack").filter(isGrab)};
   if(!P.snack.length) P.snack=poolOf("snack");   // snacks: simple, portable ones you can take to work
   const treats=allMeals().filter(m=>m.type==="treat"&&mealMacros(m).kcal>0&&mealMacros(m).kcal<=fx.treatKcal);
   const takes=allMeals().filter(m=>m.takeaway&&(m.kcal||0)<=fx.takeawayKcal);
   const rnd=a=>a[Math.floor(Math.random()*a.length)];
-  const hasTreat=fixed.snack.some(id=>(mealById(id)||{}).type==="treat");
+  const mineOrShared=e=>{ const o=entryPid(e); return !o||o===p.id; };
+  const hasTreat=fixed.snack.some(e=>mineOrShared(e)&&(mealById(e)||{}).type==="treat");
+  // mainsOnly (household planning): shared breakfast/lunch/dinner aimed at ~82% of the day, leaving room for personal snacks
+  const aimK=opt.mainsOnly?t.kcal*0.82:t.kcal, aimP=opt.mainsOnly?t.protein*0.8:t.protein;
   let best=null;
   for(let it=0;it<700;it++){
     const pick={breakfast:null,lunch:null,dinner:null,snack:[]}; let k=0,pr=0;
     const addM=(m,x)=>{ const q=mealMacros(m); k+=q.kcal*x; pr+=q.p*x; };
-    SLOTS.forEach(s=>(fixed[s.k]||[]).forEach(id=>{ const m=mealById(id); if(m) addM(m,1); }));
-    if(opt.treat && !hasTreat && treats.length){ const m=rnd(treats); pick.snack.push({id:m.id,x:1}); addM(m,1); }
+    const f=m=>scalesWithPortion(m)?pm:1;     // this person's share of a shared main meal
+    SLOTS.forEach(s=>(fixed[s.k]||[]).forEach(e=>{ if(!mineOrShared(e)) return; const m=mealById(e); if(m) addM(m,entryPid(e)?1:f(m)); }));
+    if(opt.treat && !opt.mainsOnly && !hasTreat && treats.length){ const m=rnd(treats); pick.snack.push({id:m.id,x:1}); addM(m,1); }
     if(opt.takeaway && !fixed.dinner.length && takes.length){ const m=rnd(takes); pick.dinner={id:m.id,x:1}; addM(m,1); }
     ["breakfast","lunch","dinner"].forEach(sl=>{
       if(fixed[sl].length||pick[sl]) return;
-      let pool=P[sl]; if(sl==="dinner"&&avoid.size){ const f=pool.filter(m=>!avoid.has(m.id)); if(f.length) pool=f; }
-      if(!pool.length) return; const m=rnd(pool); pick[sl]={id:m.id,x:1}; addM(m,1);
+      let pool=P[sl]; if(sl==="dinner"&&avoid.size){ const fl=pool.filter(m=>!avoid.has(m.id)); if(fl.length) pool=fl; }
+      if(!pool.length) return; const m=rnd(pool); pick[sl]={id:m.id,x:1}; addM(m,f(m));
     });
-    // bigger portions for big targets — suggestions only; the week grid stores whole serves, so auto-plan opts out
-    if(opt.portions!==false) ["dinner","lunch"].forEach(sl=>{ const x=pick[sl]; if(!x) return; const m=mealById(x.id); if(m.takeaway) return; if(k<t.kcal-650){ x.x=1.5; addM(m,0.5); } });
-    // snacks close the gap. Whole-serve plans (auto-plan) may need more of them for big targets; when the gap is big,
-    // favour the heartier protein-dense options so a 3,000 kcal bulk is reachable without 6 tiny snacks
-    let guard=0; const maxSn=opt.portions===false?(t.kcal>2600?5:4):3;
-    while(k<t.kcal-150 && guard++<maxSn){
-      const room=t.kcal-k+120, c=P.snack.filter(m=>mealMacros(m).kcal<=room && !pick.snack.some(s=>s.id===m.id));
-      if(!c.length) break;
-      c.sort((a,b)=>mealMacros(b).p/mealMacros(b).kcal-mealMacros(a).p/mealMacros(a).kcal);
-      let cand=c.slice(0,10); if(t.kcal-k>500) cand=cand.sort((a,b)=>mealMacros(b).kcal-mealMacros(a).kcal).slice(0,5);
-      const m=rnd(cand.slice(0,8)); pick.snack.push({id:m.id,x:1}); addM(m,1);
+    // an extra half serve for a big eater — suggestions only; the week grid stores whole serves, so auto-plan opts out
+    if(opt.portions!==false) ["dinner","lunch"].forEach(sl=>{ const x=pick[sl]; if(!x) return; const m=mealById(x.id); if(m.takeaway) return; if(k<t.kcal-650){ x.x=1.5; addM(m,0.5*f(m)); } });
+    // grab & go snacks close the gap; for big gaps favour the heartier protein-dense ones
+    if(!opt.mainsOnly){
+      let guard=0; const maxSn=opt.portions===false?(t.kcal>2600?5:4):3;
+      while(k<t.kcal-150 && guard++<maxSn){
+        const room=t.kcal-k+120, c=P.snack.filter(m=>mealMacros(m).kcal<=room && !pick.snack.some(s=>s.id===m.id));
+        if(!c.length) break;
+        c.sort((a,b)=>mealMacros(b).p/mealMacros(b).kcal-mealMacros(a).p/mealMacros(a).kcal);
+        let cand=c.slice(0,10); if(t.kcal-k>500) cand=cand.sort((a,b)=>mealMacros(b).kcal-mealMacros(a).kcal).slice(0,5);
+        const m=rnd(cand.slice(0,8)); pick.snack.push({id:m.id,x:1}); addM(m,1);
+      }
     }
     // variety: penalise meals already used this week (auto-plan passes the running counts)
     let rep=0; if(used){ ["breakfast","lunch","dinner"].forEach(sl=>{ if(pick[sl]) rep+=used.get(pick[sl].id)||0; }); pick.snack.forEach(s=>rep+=(used.get(s.id)||0)*0.7); }
-    const score=Math.abs(k-t.kcal)/t.kcal*100+Math.max(0,t.protein-pr)/t.protein*120+rep*5;
-    if(!best||score<best.score) best={pick,kcal:Math.round(k),p:Math.round(pr),score};
+    const score=Math.abs(k-aimK)/aimK*100+Math.max(0,aimP-pr)/aimP*120+rep*5;
+    if(!best||score<best.score) best={pick,kcal:Math.round(k),p:Math.round(pr),score,pm};
   }
   return best;
 }
+/* One person's own top-ups for a day: their treat (on their treat days) + grab & go snacks until they're within ~150 kcal of target.
+   Added as personal entries ("id@personId") so only they eat them and the shopping list buys just one. */
+function fillPersonal(q,dk,used){
+  const t=targetsFor(q), fx=flexFor(q), snacks=state.plan[dk].snack; let n=0;
+  const bump=id=>used&&used.set(id,(used.get(id)||0)+1);
+  const hasTreat=snacks.some(e=>{ const o=entryPid(e); return (!o||o===q.id)&&(mealById(e)||{}).type==="treat"; });
+  if(fx.treatDays.includes(dk)&&!hasTreat){
+    const tr=allMeals().filter(m=>m.type==="treat"&&mealMacros(m).kcal>0&&mealMacros(m).kcal<=fx.treatKcal)
+      .map(m=>[(used&&used.get(m.id)||0)+Math.random()*0.9,m]).sort((a,b)=>a[0]-b[0]);
+    if(tr.length){ const m=tr[0][1]; snacks.push(m.id+"@"+q.id); bump(m.id); n++; }
+  }
+  const dens=m=>mealMacros(m).p/Math.max(1,mealMacros(m).kcal);
+  for(let g=0;g<5;g++){
+    const d=planDayMacros(dk,q.id), gap=t.kcal-d.kcal, pgap=t.protein-d.p;
+    if(gap<150) break;
+    const have=new Set(snacks.filter(e=>entryPid(e)===q.id).map(entryMealId));
+    let c=poolOf("snack").filter(isGrab).filter(m=>!have.has(m.id)&&mealMacros(m).kcal<=gap+100);
+    if(!c.length) break;
+    c.sort(pgap>10?(a,b)=>dens(b)-dens(a):(a,b)=>Math.abs(gap-mealMacros(a).kcal)-Math.abs(gap-mealMacros(b).kcal));
+    if(gap>500) c=c.slice(0,8).sort((a,b)=>mealMacros(b).kcal-mealMacros(a).kcal);
+    const m=c.slice(0,4).map(x=>[(used&&used.get(x.id)||0)+Math.random()*0.9,x]).sort((a,b)=>a[0]-b[0])[0][1];
+    snacks.push(m.id+"@"+q.id); bump(m.id); n++;
+  }
+  return n;
+}
+/* Auto-plan fitted to goals. One profile: shared meals + snacks for that person. Two or more: shared breakfasts, lunches and
+   dinners everyone eats (each at their own portion), then each person gets their own treat/snacks to land on their target. */
 function autoPlanForGoal(p){
-  const fx=flexFor(p), t=targetsFor(p), avoid=[], used=new Map(); let added=0;
-  const use=id=>used.set(id,(used.get(id)||0)+1);
-  DAYS.forEach(d=>{ state.plan[d.k].dinner.forEach(id=>avoid.push(id)); SLOTS.forEach(s=>state.plan[d.k][s.k].forEach(use)); });
+  const ps=profiles(), multi=ps.length>1;
+  const fx=flexFor(p), avoid=[], used=new Map(); let added=0;
+  const use=id=>used.set(entryMealId(id),(used.get(entryMealId(id))||0)+1);
+  DAYS.forEach(d=>{ state.plan[d.k].dinner.forEach(id=>avoid.push(entryMealId(id))); SLOTS.forEach(s=>state.plan[d.k][s.k].forEach(use)); });
   DAYS.forEach(d=>{
     const fixed={}; SLOTS.forEach(s=>fixed[s.k]=state.plan[d.k][s.k].slice());
     const isTreat=fx.treatDays.includes(d.k), isTk=fx.takeawayDay===d.k;
-    const needs=["breakfast","lunch","dinner"].some(s=>!fixed[s].length)||(isTreat&&!fixed.snack.some(id=>(mealById(id)||{}).type==="treat"));
-    if(!needs) return;
-    const sg=suggestDay(p,{fixed,avoid,used,treat:isTreat,takeaway:isTk,portions:false}); if(!sg) return;
-    ["breakfast","lunch","dinner"].forEach(s=>{ const it=sg.pick[s]; if(it&&!fixed[s].length){ state.plan[d.k][s].push(it.id); use(it.id); added++; if(s==="dinner") avoid.push(it.id); } });
-    sg.pick.snack.forEach(it=>{ state.plan[d.k].snack.push(it.id); use(it.id); added++; });
+    const needMains=["breakfast","lunch","dinner"].some(s=>!fixed[s].length);
+    if(!multi){
+      const needs=needMains||(isTreat&&!fixed.snack.some(id=>(mealById(id)||{}).type==="treat"));
+      if(!needs) return;
+      const sg=suggestDay(p,{fixed,avoid,used,treat:isTreat,takeaway:isTk,portions:false}); if(!sg) return;
+      ["breakfast","lunch","dinner"].forEach(s=>{ const it=sg.pick[s]; if(it&&!fixed[s].length){ state.plan[d.k][s].push(it.id); use(it.id); added++; if(s==="dinner") avoid.push(it.id); } });
+      sg.pick.snack.forEach(it=>{ state.plan[d.k].snack.push(it.id); use(it.id); added++; });
+      return;
+    }
+    if(needMains){
+      const sg=suggestDay(p,{fixed,avoid,used,takeaway:isTk,portions:false,mainsOnly:true});
+      if(sg) ["breakfast","lunch","dinner"].forEach(s=>{ const it=sg.pick[s]; if(it&&!fixed[s].length){ state.plan[d.k][s].push(it.id); use(it.id); added++; if(s==="dinner") avoid.push(it.id); } });
+    }
+    ps.forEach(q=>{ added+=fillPersonal(q,d.k,used); });
   });
   save(); renderWeek(); renderShopping();
-  const days=DAYS.map(d=>planDayMacros(d.k)).filter(m=>m.n), avgK=days.reduce((s,m)=>s+m.kcal,0)/(days.length||1), avgP=days.reduce((s,m)=>s+m.p,0)/(days.length||1);
-  toast(added?`🎯 Filled ${added} slots for ${p.name} — averaging ${fmtInt(avgK)} kcal & ${Math.round(avgP)}g protein a day (target ${fmtInt(t.kcal)} / ${t.protein}g)${fx.treatDays.length?", treats included":""}${fx.takeawayDay?", takeaway "+dayName(fx.takeawayDay):""}`:"Every meal slot is already full");
+  if(!added){ toast("Every meal slot is already full"); return; }
+  const avg=q=>{ const ds=DAYS.map(d=>planDayMacros(d.k,q.id)).filter(m=>m.n); return ds.length?ds.reduce((s,m)=>s+m.kcal,0)/ds.length:0; };
+  if(multi) toast(`🎯 Planned shared meals + personal snacks — `+ps.map(q=>`${q.name} ~${fmtInt(avg(q))}/${fmtInt(targetsFor(q).kcal)} kcal (${fmtX(portionOf(q))} portions)`).join(" · "));
+  else { const t=targetsFor(p), ds=DAYS.map(d=>planDayMacros(d.k,p.id)).filter(m=>m.n), avgP=ds.reduce((s,m)=>s+m.p,0)/(ds.length||1);
+    toast(`🎯 Filled ${added} slots for ${p.name} — averaging ${fmtInt(avg(p))} kcal & ${Math.round(avgP)}g protein a day (target ${fmtInt(t.kcal)} / ${t.protein}g, ${fmtX(portionOf(p))} portions)${fx.treatDays.length?", treats included":""}${fx.takeawayDay?", takeaway "+dayName(fx.takeawayDay):""}`); }
 }
-function planDayMacros(dk){
-  const t={kcal:0,p:0,c:0,f:0,n:0};
-  SLOTS.forEach(s=>(state.plan[dk][s.k]||[]).forEach(id=>{ const m=mealById(id); if(!m) return; const x=mealMacros(m); t.kcal+=x.kcal; t.p+=x.p; t.c+=x.c; t.f+=x.f; t.n++; }));
+/* What one person actually eats that day: shared main meals × their portion, shared snacks ×1, and only their own personal items. */
+function planDayMacros(dk,pid){
+  const t={kcal:0,p:0,c:0,f:0,n:0}, pm=pid?portionOf(profileById(pid)):1;
+  SLOTS.forEach(s=>(state.plan[dk][s.k]||[]).forEach(id=>{
+    const m=mealById(id); if(!m) return; const own=entryPid(id); if(own&&own!==pid) return;
+    const f=(!own&&scalesWithPortion(m))?pm:1, x=mealMacros(m);
+    t.kcal+=x.kcal*f; t.p+=x.p*f; t.c+=x.c*f; t.f+=x.f*f; t.n++;
+  }));
+  t.kcal=Math.round(t.kcal); t.p=Math.round(t.p); t.c=Math.round(t.c); t.f=Math.round(t.f);
   return t;
 }
 function dayMacrosHtml(dk){
-  const d=planDayMacros(dk); if(!d.n) return ""; const p=me();
+  const p=me(), d=planDayMacros(dk,p?p.id:null); if(!d.n) return "";
   if(!p) return `<span class="day-macros"><b>${fmtInt(d.kcal)}</b> kcal · <b>${d.p}g</b> protein <span>/person</span></span>`;
   const t=targetsFor(p), r=d.kcal/t.kcal, cls=r<0.85?"low":r>1.1?"hi":"ok", pc=d.p>=t.protein*0.9?"ok":"low";
   return `<span class="day-macros" title="${esc(p.name)}'s daily targets: ${fmtInt(t.kcal)} kcal · ${t.protein}g protein"><b class="${cls}">${fmtInt(d.kcal)}</b>/${fmtInt(t.kcal)} kcal · <b class="${pc}">${d.p}</b>/${t.protein}g P</span>`;
@@ -2792,7 +3088,7 @@ function renderToday(){
   const box=document.getElementById("todayBody"); if(!box) return;
   const p=me();
   if(!p){ box.innerHTML=welcomeHtml()+todayMealsCard(null); return; }
-  const t=targetsFor(p), ag=aggFor(p), lv=levelOf(ag.xp), wkN=((ag.wk[weekStart()]||{}).n)||0, st=stepsFor(p.id,isoDate()), dm=planDayMacros(todayKey());
+  const t=targetsFor(p), ag=aggFor(p), lv=levelOf(ag.xp), wkN=((ag.wk[weekStart()]||{}).n)||0, st=stepsFor(p.id,isoDate()), dm=planDayMacros(todayKey(),p.id);
   const hr=new Date().getHours(), greet=hr<12?"Good morning":hr<18?"Good afternoon":"Good evening";
   box.innerHTML=chipsHtml()+
     `<div class="card"><div class="hero"><span style="font-size:40px; line-height:1">${esc(p.emoji)}</span><div class="grow">
@@ -2817,11 +3113,13 @@ function nextWorkoutCard(p){
 function slotLabel(k,m){ return m.takeaway?"Takeaway":m.type==="treat"?"Treat":(SLOTS.find(z=>z.k===k)||{l:k}).l.replace(" & treats",""); }
 function todayMealsCard(p){
   const dk=todayKey(), rows=[];
-  SLOTS.forEach(s=>state.plan[dk][s.k].forEach(id=>{ const m=mealById(id); if(m) rows.push({k:s.k,m}); }));
-  const tot=planDayMacros(dk);
+  SLOTS.forEach(s=>state.plan[dk][s.k].forEach(id=>{ const m=mealById(id), own=entryPid(id); if(m&&(!own||(p&&own===p.id))) rows.push({k:s.k,m,own}); }));
+  const tot=planDayMacros(dk,p?p.id:null);
   let h=`<div class="card"><h2>🍽️ Today's meals<span class="grow"></span><button class="ghost" data-act="goTab" data-tab="plan">Plan week</button></h2>`;
   if(rows.length){
-    h+=rows.map(({k,m})=>{ const x=mealMacros(m); return `<div class="li click" data-act="recipe" data-id="${m.id}"><span class="slot-lbl">${slotLabel(k,m)}</span><span class="em">${m.emoji||"🍽️"}</span><div class="grow"><div class="nm">${esc(m.name)}</div><div class="mt">${x.kcal} kcal · ${x.p}g protein</div></div></div>`; }).join("");
+    h+=rows.map(({k,m,own})=>{ const x=mealMacros(m), f=(p&&!own&&scalesWithPortion(m))?portionOf(p):1;
+      return `<div class="li click" data-act="recipe" data-id="${m.id}"><span class="slot-lbl">${slotLabel(k,m)}</span><span class="em">${m.emoji||"🍽️"}</span><div class="grow"><div class="nm">${esc(m.name)}</div>
+        <div class="mt">${Math.round(x.kcal*f)} kcal · ${Math.round(x.p*f)}g protein${p&&scalesWithPortion(m)?` · <b>your portion:</b> ${esc(portionSummary(m,f))}`:""}</div></div></div>`; }).join("");
     if(p){
       const t=targetsFor(p), gap=t.kcal-tot.kcal, pg=t.protein-tot.p;
       h+=`<div class="tot"><span><b>${fmtInt(tot.kcal)}</b>/${fmtInt(t.kcal)} kcal</span><div class="bar-outer grow" style="min-width:70px"><div class="bar-inner" style="width:${clamp(tot.kcal/t.kcal*100,0,100)}%"></div></div><span><b>${tot.p}g</b>/${t.protein}g protein</span></div>`;
@@ -2861,11 +3159,12 @@ function suggestionBlock(p,where){
   const items=[]; ["breakfast","lunch","dinner"].forEach(k=>{ if(s.pick[k]) items.push([k,s.pick[k]]); }); s.pick.snack.forEach(x=>items.push(["snack",x]));
   const bigger=items.some(([,it])=>it.x>1);
   return `<p class="note" style="margin:0 0 4px">A day that lands on ~<b>${fmtInt(t.kcal)} kcal</b> and <b>${t.protein}g protein</b>:</p>`+
-    items.map(([k,it])=>{ const m=mealById(it.id); if(!m) return ""; const x=mealMacros(m); return `<div class="li click" data-act="recipe" data-id="${m.id}"><span class="slot-lbl">${slotLabel(k,m)}</span><span class="em">${m.emoji||"🍽️"}</span><div class="grow"><div class="nm">${esc(m.name)}${it.x>1?` <span class="tag soft">1½ serve</span>`:""}</div><div class="mt">${Math.round(x.kcal*it.x)} kcal · ${Math.round(x.p*it.x)}g protein</div></div></div>`; }).join("")+
+    items.map(([k,it])=>{ const m=mealById(it.id); if(!m) return ""; const x=mealMacros(m), f=it.x*(scalesWithPortion(m)?portionOf(p):1);
+      return `<div class="li click" data-act="recipe" data-id="${m.id}"><span class="slot-lbl">${slotLabel(k,m)}</span><span class="em">${m.emoji||"🍽️"}</span><div class="grow"><div class="nm">${esc(m.name)}${Math.abs(f-1)>0.05?` <span class="tag soft">${fmtX(f)} serve</span>`:""}</div><div class="mt">${Math.round(x.kcal*f)} kcal · ${Math.round(x.p*f)}g protein${scalesWithPortion(m)?" · "+esc(portionSummary(m,f)):""}</div></div></div>`; }).join("")+
     `<div class="tot"><span>Total <b>${fmtInt(s.kcal)}</b> kcal · <b>${s.p}g</b> protein</span><span class="grow"></span>
       <select id="suggDay_${where}" aria-label="Day to add to">${DAYS.map(d=>`<option value="${d.k}"${d.k===todayKey()?" selected":""}>${d.l}</option>`).join("")}</select>
       <button class="primary" data-act="suggAdd" data-where="${where}">Add to plan</button><button class="ghost" data-act="suggShuffle" title="Show a different combination">🔀</button></div>`+
-    (bigger?`<p class="note">“1½ serve” = a bigger portion for you. The shopping list still scales by the People count.</p>`:"");
+    (bigger?`<p class="note">An extra half serve is suggested to reach your target — the shopping list buys standard portions, so cook a little extra.</p>`:"");
 }
 function goalMiniCard(p){
   const gi=goalInfo(p);
@@ -2974,7 +3273,8 @@ function bodyCalcHtml(p,inForm){
       <div><b>${t.protein}g</b><span>protein a day</span></div>
       <div><b>${t.carbs}g</b><span>carbs a day</span></div>
       <div><b>${t.fat}g</b><span>fat a day</span></div>
-      <div><b>${t.water} L</b><span>water a day</span></div></div>
+      <div><b>${t.water} L</b><span>water a day</span></div>
+      <div><b>${fmtX(portionOf(p))}</b><span>portion at shared meals${!p.portion||p.portion==="auto"?" (auto)":""}</span></div></div>
     <p class="note" style="margin:10px 0 0">${gi.done?"🎉 You're already at this goal — pick a new one.":gi.noEta?`🎯 <b>${esc(gi.title)}</b>: ${esc(gi.planMsg)}`:`🎯 <b>${esc(gi.title)}</b>: about <b>${weeksText(gi.weeks)}</b> (around <b>${fmtDMY(gi.eta)}</b>). ${esc(gi.planMsg)}`}</p>
     ${fx.treatDays.length||fx.takeawayDay?`<p class="note" style="margin:6px 0 0">Built in: ${fx.treatDays.length?`🍫 treats ${fx.mode==="daily"?"every day":"every second day"} under <b>${fx.treatKcal} kcal</b>`:""}${fx.treatDays.length&&fx.takeawayDay?" · ":""}${fx.takeawayDay?`🥡 ${dayName(fx.takeawayDay)} takeaway under <b>${fmtInt(fx.takeawayKcal)} kcal</b>`:""}.</p>`:""}
     ${inForm?`<p class="note" style="margin:8px 0 0; font-size:11.5px">Estimates (Mifflin-St Jeor) — a starting point, not medical advice. Under 18, pregnant, or managing a health condition? Check with your GP or a dietitian first.</p>`:""}`;
@@ -3119,6 +3419,9 @@ function renderProfileForm(){
     <div><label>🍫 Sweet treats</label><select data-pf="treats">${Object.entries(TREATS).map(([k,l])=>`<option value="${k}"${d.treats===k?" selected":""}>${l}</option>`).join("")}</select></div>
     <div><label>🥡 Takeaway night</label><select data-pf="takeaway"><option value="">None</option>${DAYS.map(x=>`<option value="${x.k}"${d.takeaway===x.k?" selected":""}>${x.l}</option>`).join("")}</select></div>
     <div><label>👟 Daily step goal</label><input type="number" data-pf="stepGoal" value="${d.stepGoal||8000}" step="500" min="1000" inputmode="numeric"></div>
+    <div class="full"><label>🍽️ Portion size at shared meals</label><select data-pf="portion" id="pfPortion">
+      <option value="auto"${!d.portion||d.portion==="auto"?" selected":""}>Auto — from your calories</option>
+      ${[["0.75","Small (0.75×)"],["1","Standard (1×)"],["1.25","Large (1.25×)"],["1.5","Extra large (1.5×)"]].map(([v,l])=>`<option value="${v}"${String(d.portion)===v?" selected":""}>${l}</option>`).join("")}</select></div>
   </div>
   <div class="calc-out" id="pfCalc"></div>
   <div class="row" style="margin-top:14px"><button class="primary" data-act="saveProfile">${d._id?"Save changes":"Create my plan"}</button><button class="ghost" data-act="fitClose">Cancel</button>
@@ -3142,7 +3445,7 @@ function saveProfile(){
   if(!(d.age>=14&&d.age<=90)){ toast("Age should be 14–90"); return; }
   if(!(d.height>=120&&d.height<=230)){ toast("Height should be in cm (120–230)"); return; }
   if(!(d.weight>=30&&d.weight<=300)){ toast("Weight should be in kg (30–300)"); return; }
-  const F=["emoji","sex","age","height","goal","targetWeight","level","days","equip","stepGoal","treats","takeaway"];
+  const F=["emoji","sex","age","height","goal","targetWeight","level","days","equip","stepGoal","treats","takeaway","portion"];
   let p;
   if(d._id){
     p=profileById(d._id); if(!p) return;
@@ -3156,6 +3459,7 @@ function saveProfile(){
     F.forEach(f=>p[f]=d[f]); p.name=name;
     profiles().push(p); logWeight(p.id,d.weight,isoDate());
     try{ localStorage.setItem(FIT_ME_KEY,p.id); }catch(e){}
+    if((state.people||0)<profiles().length){ state.people=profiles().length; const ps=document.getElementById("people"); if(ps) ps.value=state.people; }
   }
   if(!p.targetWeight&&(p.goal==="fat"||p.goal==="muscle")) p.targetWeight=defaultTarget(p);
   stamp(p); save(); closeFit(); crewPush(); _sugg=null;
@@ -3170,6 +3474,7 @@ function deleteProfile(){
   f.workouts.filter(w=>w.pid===p.id).forEach(w=>tomb(w.id)); f.weighins.filter(w=>w.pid===p.id).forEach(w=>tomb(w.id)); f.steps.filter(s=>s.pid===p.id).forEach(s=>tomb(s.id));
   f.profiles=f.profiles.filter(x=>x.id!==p.id); f.workouts=f.workouts.filter(w=>w.pid!==p.id); f.weighins=f.weighins.filter(w=>w.pid!==p.id); f.steps=f.steps.filter(s=>s.pid!==p.id);
   if(getActive()&&getActive().pid===p.id) setActive(null);
+  DAYS.forEach(d=>SLOTS.forEach(s=>{ state.plan[d.k][s.k]=state.plan[d.k][s.k].filter(e=>entryPid(e)!==p.id); }));   // their personal snacks go too
   save(); closeFit(); if(crewCode()) crewPushNow([p.id]);
   renderFitAll(); renderWeek(); toast("Profile deleted");
 }
@@ -3320,11 +3625,16 @@ const ACT={
   stepsHelp,
   copyStepsUrl:()=>{ navigator.clipboard.writeText(location.origin+location.pathname+"#steps=").then(()=>toast("Link copied 📋"),()=>{}); },
   recipe:el=>openRecipe(el.dataset.id),
-  addToday:el=>{ const m=mealById(el.dataset.id); if(!m) return; state.plan[todayKey()][m.type==="lunch"?"lunch":"snack"].push(m.id); save(); renderFitAll(); renderWeek(); renderShopping(); toast("Added "+m.name+" to today"); },
+  addToday:el=>{ const m=mealById(el.dataset.id), p=me(); if(!m) return;
+    // a top-up snack is personal once there's more than one person in the house
+    const entry=profiles().length>1&&p&&!scalesWithPortion(m)?m.id+"@"+p.id:m.id;
+    state.plan[todayKey()][m.type==="lunch"?"lunch":"snack"].push(entry); save(); renderFitAll(); renderWeek(); renderShopping();
+    toast("Added "+m.name+(entryPid(entry)?" for "+p.name:"")+" to today"); },
   suggShuffle:()=>{ const p=me(); if(!p) return; getSugg(p,true); renderFitAll(); },
   suggAdd:el=>{ const p=me(); if(!p) return; const s=getSugg(p); const sel=document.getElementById("suggDay_"+el.dataset.where); const dk=sel?sel.value:todayKey(); let n=0,skip=0;
     ["breakfast","lunch","dinner"].forEach(k=>{ const it=s.pick[k]; if(!it) return; if(state.plan[dk][k].length){ skip++; return; } state.plan[dk][k].push(it.id); n++; });
-    s.pick.snack.forEach(it=>{ state.plan[dk].snack.push(it.id); n++; });
+    const personal=profiles().length>1;
+    s.pick.snack.forEach(it=>{ state.plan[dk].snack.push(personal?it.id+"@"+p.id:it.id); n++; });
     save(); renderWeek(); renderShopping(); getSugg(p,true); renderFitAll();
     toast(`Added ${n} to ${dayName(dk)}${skip?` (kept ${skip} meal${skip>1?"s":""} you'd already planned)`:""} ✓`); },
   lbCat:el=>{ _board.cat=el.dataset.k; renderBoard(); },
