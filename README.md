@@ -11,7 +11,9 @@ A personal, single-file meal + gym planner — vanilla HTML/CSS/JS, no build ste
 
 **Meals & shopping**
 - Library of simple, cheap, fruit-free meals → drag or tap onto a 7-day grid. Every meal shows calories + protein (macros are worked out from the ingredients).
-- **Auto-plan** fills the week to hit the selected person's calorie & protein target, with variety.
+- **Auto-plan** fills the week to hit the selected person's calorie & protein target, with variety — and to a **weekly budget** (💰, default $150): it costs each meal by what it *adds* to the basket, so meals that share ingredients win, last night's dinner becomes 🍱 leftovers for lunch, snacks come out of multipacks, and a final pass swaps the priciest items until the week fits.
+- Pack rounding stretches small overages (1.1 packs → buy 1); 🧂 pantry staples (oils, spices, sauces) are listed but left out of the total unless you mark them.
+- **Per-person portions** — each profile's portion (auto from calories) scales shared meals; the shopping list buys the real total, and every recipe shows a plate guide (cooked grams, piece counts, wrap sizes) per person.
 - **Grab & go snacks** — simple, portable snacks you can take to work.
 - **Treats & takeaway night** — a sweet treat every day or every second day (≈8% of calories) and one takeaway night with a calorie budget ("a splash, not a blowout"), both built into the plan.
 - Auto-generated **shopping list**, consolidated and scaled by People, in **Woolworths** aisle order, with whole-pack price estimates. Copy / Email / Print-PDF.

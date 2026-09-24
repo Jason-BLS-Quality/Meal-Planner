@@ -334,6 +334,12 @@
     table.ptable .small{font-size:10.5px}
   }
   .chip-meal.personal{border-style:dashed}
+  .budget-bar{display:flex; align-items:center; gap:10px; margin:6px 0 2px; font-size:12.5px; flex-wrap:wrap}
+  .budget-bar .bar-outer{flex:1; min-width:120px; max-width:260px}
+  .staple{font-size:10.5px; color:var(--muted); font-weight:600; white-space:nowrap}
+  .lo-tag{font-size:10px; font-weight:700; color:var(--l); margin-left:3px; white-space:nowrap}
+  .week-budget{display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px; font-size:13px}
+  .week-budget .bar-outer{flex:1; min-width:100px; max-width:240px}
   .chip-meal .own{font-size:12px}
   .macro-line{display:flex; gap:12px; flex-wrap:wrap; font-size:13px; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 10px; margin:-4px 0 6px}
   .macro-line b{color:var(--accent)}
@@ -377,6 +383,13 @@
       <select id="people" title="How many people eat the shared meals. People with a profile get their own portion size; anyone extra gets a standard serve.">
         <option>1</option><option selected>2</option><option>3</option><option>4</option>
         <option>5</option><option>6</option><option>7</option><option>8</option>
+      </select>
+    </div>
+    <div class="ctrl meal-only">
+      💰 Budget
+      <select id="budget" title="Weekly grocery budget — Auto-plan picks meals that share ingredients to stay under it (takeaway nights not included)">
+        <option value="0">No limit</option><option value="100">$100/wk</option><option value="125">$125/wk</option><option value="150">$150/wk</option>
+        <option value="175">$175/wk</option><option value="200">$200/wk</option><option value="250">$250/wk</option><option value="300">$300/wk</option>
       </select>
     </div>
     <button class="ghost meal-only" id="autoPlan" title="Fill empty slots — fitted to your calorie &amp; protein target when you have a profile">🎲 Auto-plan</button>
@@ -1326,7 +1339,7 @@ let _pushTimer=null;
 function emptyState(){
   const plan={};
   DAYS.forEach(d=>{plan[d.k]={breakfast:[],lunch:[],dinner:[],snack:[]};});
-  return {plan,people:2,custom:[],checked:{},manual:[],favourites:{},have:{},fit:emptyFit()};
+  return {plan,people:2,custom:[],checked:{},manual:[],favourites:{},have:{},needPantry:{},budget:150,fit:emptyFit()};
 }
 function load(){
   try{
@@ -1355,6 +1368,7 @@ function isDirty(){ try{ return localStorage.getItem(DIRTY_KEY)==="1"; }catch(e)
 const SYNC_API="/api/plan";
 function renderAll(){
   document.getElementById("people").value=state.people;
+  const bs=document.getElementById("budget"); if(bs) bs.value=String(budgetOf());
   renderLibrary(); renderWeek(); renderShopping(); renderCustomList(); renderFitAll();
 }
 function setSyncBadge(){
@@ -1687,9 +1701,20 @@ function mealCost(m){ if(m&&m.takeaway) return m.cost||0; return (m&&m.ingredien
 /* Takeaway nights aren't on the shopping list — this is their separate "eating out" estimate for the week. */
 function weeklyTakeawayCost(){ let t=0; DAYS.forEach(d=>SLOTS.forEach(s=>state.plan[d.k][s.k].forEach(id=>{ const m=mealById(id); if(m&&m.takeaway) t+=(m.cost||0)*(entryPid(id)?1:eaters().length); }))); return t; }
 /* Pack-based: what you actually buy = whole packs. */
-function lineCostFor(name,qty){ const p=PACKS[name]; return p?Math.ceil((qty||0)/p[0])*p[1]:0; }
-function weeklyShopCost(){ return buildList().filter(i=>!state.have[i.key]).reduce((s,i)=>s+lineCostFor(i.name,i.qty),0); }
+/* Whole packs to buy. Up to ~15% over a pack you stretch it (1.1 packs of wraps = buy 1), rather than buying a second pack for a sliver. */
+function packsNeeded(qty,size){ if(!(qty>0)) return 0; return Math.max(1,Math.ceil(qty/size-0.15)); }
+function lineCostFor(name,qty){ const p=PACKS[name]; return p?packsNeeded(qty||0,p[0])*p[1]:0; }
+/* Pantry staples most kitchens already have — listed so you can check, but left out of the total unless you mark "need to buy". */
+const PANTRY=new Set(["Olive oil","Sesame oil","Soy sauce","Fish sauce","Oyster sauce","Sweet chilli sauce","Hot sauce","Mayonnaise",
+  "Curry powder","Garam masala","Cumin","Chilli flakes","Chilli powder","Honey","Maple syrup","Plain flour","Sugar","Vegetable stock cube",
+  "Breadcrumbs","Sesame seeds","Cocoa powder","Peanut butter","Jam","Gravy granules"]);
+function isPantry(name){ return PANTRY.has(name); }
+/* owned = not counted in the total: pantry staples unless flagged "need", everything else only when tapped "already have" */
+function itemOwned(i){ return !i.manual&&isPantry(i.name)?!(state.needPantry||{})[i.key]:!!state.have[i.key]; }
+function weeklyShopCost(){ return buildList().filter(i=>!itemOwned(i)).reduce((s,i)=>s+lineCostFor(i.name,i.qty),0); }
 function fullBasketCost(){ return buildList().reduce((s,i)=>s+lineCostFor(i.name,i.qty),0); }
+/* Weekly grocery budget (takeaway nights are separate). 0 = no limit. */
+function budgetOf(){ return state.budget==null?150:Number(state.budget)||0; }
 function fmtMoney(n){ return "$"+(n>=100?Math.round(n).toString():n.toFixed(2)); }
 function mealCuisine(m){ if(m&&m.takeaway) return "Takeaway"; return (m&&m.cuisine) || (m&&CUISINE[m.id]) || ""; }
 function typeColor(t){ return t==="breakfast"?"var(--b)":t==="lunch"?"var(--l)":t==="dinner"?"var(--d)":t==="treat"?"var(--t)":"var(--s)"; }
@@ -1808,15 +1833,20 @@ function renderWeek(){
   const dates=weekDates();
   const tk=todayKey();
   const fmt=new Intl.DateTimeFormat("en-GB",{day:"numeric",month:"short"});
-  document.getElementById("week").innerHTML=DAYS.map(d=>{
+  const anyMeals=DAYS.some(d=>SLOTS.some(s=>state.plan[d.k][s.k].length));
+  const cost=anyMeals?weeklyShopCost():0, b=budgetOf();
+  const strip=anyMeals?`<div class="panel week-budget">🛒 This week's shop <b>~${fmtMoney(cost)}</b>${b?`<div class="bar-outer"><div class="bar-inner" style="width:${clamp(cost/b*100,0,100)}%; background:${cost>b?"var(--accent)":"var(--s)"}"></div></div><span>${cost>b?`<b style="color:var(--accent)">${fmtMoney(cost-b)} over</b>`:`${fmtMoney(b-cost)} left`} of ${fmtMoney(b)}</span>`:""}${weeklyTakeawayCost()>0?`<span class="muted">+ 🥡 ~${fmtMoney(weeklyTakeawayCost())} takeaway</span>`:""}</div>`:"";
+  document.getElementById("week").innerHTML=strip+DAYS.map(d=>{
     const slotsHtml=SLOTS.map(s=>{
       const ids=state.plan[d.k][s.k]||[];
       const chips=ids.map((id,idx)=>{
         const m=mealById(id);
         if(!m) return "";
         const own=profileById(entryPid(id));
-        return `<div class="chip-meal${own?' personal':''}" data-id="${esc(id)}" title="${own?esc(own.name)+"'s — ":""}Tap for recipe & portions"><span class="cm-emoji">${m.emoji||"🍽️"}</span>
-          <span class="cm-name">${esc(m.name)}${own?` <span class="own" title="Just for ${esc(own.name)}">${esc(own.emoji)}</span>`:""}</span>
+        const di=DAYS.findIndex(x=>x.k===d.k), prevDinner=di>0?state.plan[DAYS[di-1].k].dinner.map(entryMealId):[];
+        const leftover=s.k==="lunch"&&m.type==="dinner"&&prevDinner.includes(m.id);
+        return `<div class="chip-meal${own?' personal':''}" data-id="${esc(id)}" title="${own?esc(own.name)+"'s — ":""}${leftover?"Leftovers from last night — cook extra at dinner. ":""}Tap for recipe & portions"><span class="cm-emoji">${m.emoji||"🍽️"}</span>
+          <span class="cm-name">${esc(m.name)}${leftover?'<span class="lo-tag">🍱 leftovers</span>':''}${own?` <span class="own" title="Just for ${esc(own.name)}">${esc(own.emoji)}</span>`:""}</span>
           <span class="x" data-day="${d.k}" data-slot="${s.k}" data-idx="${idx}" title="Remove">✕</span></div>`;
       }).join("");
       return `<div class="slot${ids.length?'':' empty'}" data-day="${d.k}" data-slot="${s.k}" style="--type:${typeColor(s.k==='snack'?'snack':s.k)}">
@@ -1879,13 +1909,22 @@ function servesText(plain){
   const guests=E.filter(e=>!e.pid).length;
   return `for ${E.filter(e=>e.pid).map(e=>q(e.name)+" "+fmtX(e.pm)).join(" + ")}${guests?` + ${guests} guest${guests>1?"s":""}`:""} = ${Math.round(householdServes()*10)/10} serves`;
 }
+function budgetBarHtml(need){
+  const b=budgetOf(); if(!b) return "";
+  const over=need-b, pct=clamp(need/b*100,0,100);
+  return `<div class="budget-bar"><div class="bar-outer"><div class="bar-inner" style="width:${pct}%; background:${over>0?"var(--accent)":"var(--s)"}"></div></div>
+    <span>${over>0?`<b style="color:var(--accent)">${fmtMoney(over)} over</b> your ${fmtMoney(b)} budget — tap 🎲 Auto-plan to fit it, or swap a pricey meal`:`<b style="color:var(--s)">${fmtMoney(-over)} under</b> your ${fmtMoney(b)} budget ✓`}</span></div>`;
+}
 function shopTotalHtml(){
-  const need=weeklyShopCost(), owned=fullBasketCost()-need;
-  return `<div class="ptotal">🛒 To buy this shop <b>~${fmtMoney(need)}</b>`+
+  const items=buildList(), need=weeklyShopCost();
+  const pantry=items.filter(i=>!i.manual&&isPantry(i.name)&&itemOwned(i)).reduce((s,i)=>s+lineCostFor(i.name,i.qty),0);
+  const had=items.filter(i=>!isPantry(i.name)&&state.have[i.key]).reduce((s,i)=>s+lineCostFor(i.name,i.qty),0);
+  return `<div class="ptotal">🛒 To buy this shop <b>~${fmtMoney(need)}</b>`+budgetBarHtml(need)+
     `<span>${servesText()} · whole-pack Woolworths prices`+
-    (owned>0.005?` &nbsp;·&nbsp; <b style="color:var(--muted);font-size:12px">${fmtMoney(owned)} of "already have" excluded</b>`:``)+
+    (had>0.005?` &nbsp;·&nbsp; <b style="color:var(--muted);font-size:12px">${fmtMoney(had)} of "already have" excluded</b>`:``)+
+    (pantry>0.005?` &nbsp;·&nbsp; 🧂 ${fmtMoney(pantry)} of pantry staples assumed in the cupboard`:``)+
     (weeklyTakeawayCost()>0?` &nbsp;·&nbsp; 🥡 plus ~${fmtMoney(weeklyTakeawayCost())} takeaway (not on this list)`:``)+
-    `<br>Tap a price to mark something you <b>already have</b> — it drops off this total. Ticking items off as you shop won't change it.</span></div>`;
+    `<br>Tap a price to mark something you <b>already have</b> (it drops off the total). 🧂 staples are left off — tap one if you need to buy it. Ticking items off as you shop won't change the total.</span></div>`;
 }
 function renderShopping(){
   const items=buildList();
@@ -1914,10 +1953,10 @@ function renderShopping(){
         return `<div class="item${checked?' checked':''}">
           <input type="checkbox" data-key="${esc(i.key)}"${checked?' checked':''}>
           <div class="item-main">
-            <label data-key="${esc(i.key)}">${esc(lineText(i))}</label>
+            <label data-key="${esc(i.key)}">${esc(lineText(i))}${!i.manual&&isPantry(i.name)?' <span class="staple" title="Pantry staple — most kitchens have this">🧂 staple</span>':''}</label>
             ${forMeals?`<div class="item-for">for ${esc(forMeals)}</div>`:''}
           </div>
-          <span class="icost${state.have[i.key]?' owned':''}" data-have="${esc(i.key)}" title="Tap if you already have this — removes it from the total">${fmtMoney(lineCostFor(i.name,i.qty))}</span>
+          <span class="icost${itemOwned(i)?' owned':''}" data-have="${esc(i.key)}" data-pantry="${!i.manual&&isPantry(i.name)?1:0}" title="${!i.manual&&isPantry(i.name)?"Pantry staple — left off the total. Tap if you need to buy it":"Tap if you already have this — removes it from the total"}">${fmtMoney(lineCostFor(i.name,i.qty))}</span>
           ${i.manual?`<span class="x" data-manual="${esc(i.name)}" title="Remove">✕</span>`:''}
         </div>`;
       }).join("")}</div>`;
@@ -2141,7 +2180,12 @@ document.addEventListener("DOMContentLoaded",()=>{
 
   /* Toolbar */
   document.getElementById("people").addEventListener("change",e=>{
-    state.people=Number(e.target.value)||2; save(); renderShopping();
+    state.people=Number(e.target.value)||2; save(); renderShopping(); renderWeek();
+  });
+  document.getElementById("budget").value=String(budgetOf());
+  document.getElementById("budget").addEventListener("change",e=>{
+    state.budget=Number(e.target.value)||0; save(); renderShopping(); renderWeek();
+    toast(state.budget?`💰 Budget set to $${state.budget}/wk — tap 🎲 Auto-plan to fit the week to it`:"No budget limit");
   });
   document.getElementById("autoPlan").addEventListener("click",autoPlan);
   document.getElementById("clearWeek").addEventListener("click",()=>{
@@ -2277,7 +2321,10 @@ document.addEventListener("DOMContentLoaded",()=>{
     const x=e.target.closest(".x[data-manual]");
     if(x){ state.manual=state.manual.filter(m=>m.name!==x.dataset.manual); save(); renderShopping(); return; }
     const ic=e.target.closest(".icost[data-have]");
-    if(ic){ const k=ic.dataset.have; if(state.have[k]) delete state.have[k]; else state.have[k]=true; save(); renderShopping(); }
+    if(ic){ const k=ic.dataset.have;
+      if(ic.dataset.pantry==="1"){ state.needPantry=state.needPantry||{}; if(state.needPantry[k]) delete state.needPantry[k]; else state.needPantry[k]=true; }
+      else { if(state.have[k]) delete state.have[k]; else state.have[k]=true; }
+      save(); renderShopping(); renderWeek(); }
   });
   document.getElementById("manAdd").addEventListener("click",()=>{
     const name=document.getElementById("manName").value.trim(); if(!name) return;
@@ -2901,11 +2948,34 @@ function beep(){ try{ const C=window.AudioContext||window.webkitAudioContext; if
 
 /* ---- meal suggestions that hit the calorie & protein target (treats/takeaway built in) ---- */
 function poolOf(type){ return allMeals().filter(m=>m.type===type && !m.takeaway && mealMacros(m).kcal>0); }
+/* ---- Basket: what the week's plan buys, so the planner knows the EXTRA cost of adding a meal.
+   A meal that reuses packs you're already buying (the rest of the mince, the other half of the wraps) costs little or nothing. ---- */
+function Basket(){ this.q=new Map(); }
+Basket.prototype.add=function(m,serves){
+  if(!m||!m.ingredients) return; const f=serves/(m.serves||2);
+  m.ingredients.forEach(i=>this.q.set(i.name,(this.q.get(i.name)||0)+(Number(i.qty)||0)*f));
+};
+Basket.prototype.cost=function(){ let c=0; this.q.forEach((q,n)=>{ if(isPantry(n)) return; const p=PACKS[n]; if(p) c+=packsNeeded(q,p[0])*p[1]; }); return c; };
+/* extra $ to add several [meal, serves] at once */
+Basket.prototype.marginal=function(list){
+  const tmp=new Map(); let d=0;
+  list.forEach(([m,serves])=>{ if(!m||!m.ingredients||!m.ingredients.length) return; const f=serves/(m.serves||2);
+    m.ingredients.forEach(i=>{ if(isPantry(i.name)) return; const p=PACKS[i.name]; if(!p) return;
+      const q=(this.q.get(i.name)||0)+(tmp.get(i.name)||0), dq=(Number(i.qty)||0)*f;
+      d+=(packsNeeded(q+dq,p[0])-packsNeeded(q,p[0]))*p[1]; tmp.set(i.name,(tmp.get(i.name)||0)+dq); }); });
+  return d;
+};
+function planBasket(){ const b=new Basket(), E=eaters(); DAYS.forEach(d=>SLOTS.forEach(s=>state.plan[d.k][s.k].forEach(id=>{ const m=mealById(id); if(m) b.add(m,entryServes(id,m,E)); }))); return b; }
+function planCost(){ return planBasket().cost(); }
+
 function suggestDay(p,opt){
   opt=opt||{}; const t=targetsFor(p), fx=flexFor(p), pm=portionOf(p);
   const fixed=opt.fixed||{breakfast:[],lunch:[],dinner:[],snack:[]}, avoid=new Set(opt.avoid||[]), used=opt.used||null;
+  const basket=opt.basket||null, dayBudget=opt.dayBudget||0, HS=householdServes();
   const P={breakfast:poolOf("breakfast"),lunch:poolOf("lunch"),dinner:poolOf("dinner"),snack:poolOf("snack").filter(isGrab)};
   if(!P.snack.length) P.snack=poolOf("snack");   // snacks: simple, portable ones you can take to work
+  // cook once, eat twice: last night's dinner is a (cheap) lunch option
+  const lo=opt.leftover?mealById(opt.leftover):null; if(lo&&!lo.takeaway) for(let i=0;i<6;i++) P.lunch.push(lo);
   const treats=allMeals().filter(m=>m.type==="treat"&&mealMacros(m).kcal>0&&mealMacros(m).kcal<=fx.treatKcal);
   const takes=allMeals().filter(m=>m.takeaway&&(m.kcal||0)<=fx.takeawayKcal);
   const rnd=a=>a[Math.floor(Math.random()*a.length)];
@@ -2913,8 +2983,9 @@ function suggestDay(p,opt){
   const hasTreat=fixed.snack.some(e=>mineOrShared(e)&&(mealById(e)||{}).type==="treat");
   // mainsOnly (household planning): shared breakfast/lunch/dinner aimed at ~82% of the day, leaving room for personal snacks
   const aimK=opt.mainsOnly?t.kcal*0.82:t.kcal, aimP=opt.mainsOnly?t.protein*0.8:t.protein;
+  const iters=basket?900:700;
   let best=null;
-  for(let it=0;it<700;it++){
+  for(let it=0;it<iters;it++){
     const pick={breakfast:null,lunch:null,dinner:null,snack:[]}; let k=0,pr=0;
     const addM=(m,x)=>{ const q=mealMacros(m); k+=q.kcal*x; pr+=q.p*x; };
     const f=m=>scalesWithPortion(m)?pm:1;     // this person's share of a shared main meal
@@ -2939,23 +3010,33 @@ function suggestDay(p,opt){
         const m=rnd(cand.slice(0,8)); pick.snack.push({id:m.id,x:1}); addM(m,1);
       }
     }
-    // variety: penalise meals already used this week (auto-plan passes the running counts)
-    let rep=0; if(used){ ["breakfast","lunch","dinner"].forEach(sl=>{ if(pick[sl]) rep+=used.get(pick[sl].id)||0; }); pick.snack.forEach(s=>rep+=(used.get(s.id)||0)*0.7); }
-    const score=Math.abs(k-aimK)/aimK*100+Math.max(0,aimP-pr)/aimP*120+rep*5;
-    if(!best||score<best.score) best={pick,kcal:Math.round(k),p:Math.round(pr),score,pm};
+    // variety: penalise meals already used this week (leftover lunches don't count — that's the point of them). On a budget,
+    // repeats are cheap and normal, so the penalty is gentler
+    let rep=0; if(used){ ["breakfast","lunch","dinner"].forEach(sl=>{ const x=pick[sl]; if(x&&!(sl==="lunch"&&lo&&x.id===lo.id)) rep+=used.get(x.id)||0; }); pick.snack.forEach(s=>rep+=(used.get(s.id)||0)*0.7); }
+    let score=Math.abs(k-aimK)/aimK*100+Math.max(0,aimP-pr)/aimP*(basket?175:120)+rep*(basket?2.5:5);
+    let cost=0;
+    if(basket){
+      const list=[]; ["breakfast","lunch","dinner"].forEach(sl=>{ const x=pick[sl]; if(x){ const m=mealById(x.id); list.push([m,m.takeaway?0:HS]); } });
+      pick.snack.forEach(s=>list.push([mealById(s.id),1]));
+      cost=basket.marginal(list);
+      score+=cost/dayBudget*28+Math.max(0,cost-dayBudget)/dayBudget*60;
+    }
+    if(!best||score<best.score) best={pick,kcal:Math.round(k),p:Math.round(pr),score,pm,cost};
   }
   return best;
 }
 /* One person's own top-ups for a day: their treat (on their treat days) + grab & go snacks until they're within ~150 kcal of target.
-   Added as personal entries ("id@personId") so only they eat them and the shopping list buys just one. */
-function fillPersonal(q,dk,used){
+   Added as personal entries ("id@personId") so only they eat them and the shopping list buys just one. With a basket, snacks that
+   come out of packs already being bought (the rest of the yoghurt 4-pack, the dozen eggs) win. */
+function fillPersonal(q,dk,used,basket){
   const t=targetsFor(q), fx=flexFor(q), snacks=state.plan[dk].snack; let n=0;
   const bump=id=>used&&used.set(id,(used.get(id)||0)+1);
+  const put=m=>{ snacks.push(m.id+"@"+q.id); bump(m.id); if(basket) basket.add(m,1); n++; };
   const hasTreat=snacks.some(e=>{ const o=entryPid(e); return (!o||o===q.id)&&(mealById(e)||{}).type==="treat"; });
   if(fx.treatDays.includes(dk)&&!hasTreat){
     const tr=allMeals().filter(m=>m.type==="treat"&&mealMacros(m).kcal>0&&mealMacros(m).kcal<=fx.treatKcal)
-      .map(m=>[(used&&used.get(m.id)||0)+Math.random()*0.9,m]).sort((a,b)=>a[0]-b[0]);
-    if(tr.length){ const m=tr[0][1]; snacks.push(m.id+"@"+q.id); bump(m.id); n++; }
+      .map(m=>[(basket?basket.marginal([[m,1]])*0.8:0)+(used&&used.get(m.id)||0)*(basket?0.3:1)+Math.random()*0.9,m]).sort((a,b)=>a[0]-b[0]);
+    if(tr.length) put(tr[0][1]);
   }
   const dens=m=>mealMacros(m).p/Math.max(1,mealMacros(m).kcal);
   for(let g=0;g<5;g++){
@@ -2965,43 +3046,99 @@ function fillPersonal(q,dk,used){
     let c=poolOf("snack").filter(isGrab).filter(m=>!have.has(m.id)&&mealMacros(m).kcal<=gap+100);
     if(!c.length) break;
     c.sort(pgap>10?(a,b)=>dens(b)-dens(a):(a,b)=>Math.abs(gap-mealMacros(a).kcal)-Math.abs(gap-mealMacros(b).kcal));
-    if(gap>500) c=c.slice(0,8).sort((a,b)=>mealMacros(b).kcal-mealMacros(a).kcal);
-    const m=c.slice(0,4).map(x=>[(used&&used.get(x.id)||0)+Math.random()*0.9,x]).sort((a,b)=>a[0]-b[0])[0][1];
-    snacks.push(m.id+"@"+q.id); bump(m.id); n++;
+    if(gap>500) c=c.slice(0,10).sort((a,b)=>mealMacros(b).kcal-mealMacros(a).kcal);
+    // on a budget: protein per dollar — cheap protein (eggs from the dozen, tuna, yoghurt) beats a $6 jerky pack
+    const pool=c.slice(0,basket?8:4).map(x=>[(basket?basket.marginal([[x,1]])*0.9-(pgap>10?mealMacros(x).p*0.08:0):0)+(used&&used.get(x.id)||0)*(basket?0.25:1)+Math.random()*0.9,x]).sort((a,b)=>a[0]-b[0]);
+    put(pool[0][1]);
   }
   return n;
 }
-/* Auto-plan fitted to goals. One profile: shared meals + snacks for that person. Two or more: shared breakfasts, lunches and
-   dinners everyone eats (each at their own portion), then each person gets their own treat/snacks to land on their target. */
+/* Swap/drop the priciest auto-planned items until the week fits the budget, keeping everyone near their targets.
+   Only touches entries this run added (never meals you placed yourself). */
+function repairBudget(budget,added){
+  const ps=profiles(), okDay=dk=>ps.every(q=>{ const t=targetsFor(q), m=planDayMacros(dk,q.id); return m.kcal>=t.kcal*0.85&&m.kcal<=t.kcal*1.12&&m.p>=t.protein*0.85; });
+  const dayScore=dk=>ps.reduce((s,q)=>{ const t=targetsFor(q), m=planDayMacros(dk,q.id); return s+Math.abs(m.kcal-t.kcal)/t.kcal+Math.max(0,t.protein-m.p)/t.protein; },0);
+  let total=planCost();
+  for(let iter=0;iter<60&&total>budget;iter++){
+    const spots=[];
+    DAYS.forEach(d=>SLOTS.forEach(s=>state.plan[d.k][s.k].forEach((e,i)=>{ if(added.has(d.k+"|"+s.k+"|"+e)) spots.push({d:d.k,s:s.k,i,e}); })));
+    // how much each auto-added item costs the basket
+    spots.forEach(sp=>{ const arr=state.plan[sp.d][sp.s]; arr.splice(sp.i,1); sp.save=total-planCost(); arr.splice(sp.i,0,sp.e); });
+    spots.sort((a,b)=>b.save-a.save);
+    let best=null;
+    for(const sp of spots.slice(0,6)){
+      if(sp.save<0.5) break;
+      const cur=mealById(sp.e), own=entryPid(sp.e), arr=state.plan[sp.d][sp.s], before=dayScore(sp.d), wasOk=okDay(sp.d);
+      const inWeek=[...new Set(DAYS.flatMap(d=>state.plan[d.k][sp.s].map(entryMealId)))].map(mealById).filter(Boolean);
+      let cands;
+      if(sp.s==="snack") cands=poolOf(cur.type==="treat"?"treat":"snack").filter(m=>cur.type==="treat"||isGrab(m)).concat(cur.type==="treat"?[]:[null]);   // null = just drop it
+      else { cands=poolOf(cur.type==="dinner"&&sp.s!=="dinner"?"lunch":sp.s).concat(inWeek); const di=DAYS.findIndex(x=>x.k===sp.d); if(sp.s==="lunch"&&di>0) cands=cands.concat(state.plan[DAYS[di-1].k].dinner.map(mealById).filter(m=>m&&!m.takeaway)); }
+      // keep it quick on a phone: meals already in the week (near-free) + the ~14 cheapest others
+      const HS=householdServes(), alone=m=>m?mealCost(m)*(own?1:(scalesWithPortion(m)?HS:eaters().length))/(m.serves||2):0;
+      const inWeekIds=new Set(inWeek.map(m=>m.id));
+      cands=[...new Set(cands)].filter(m=>m!==cur);
+      cands=cands.filter(m=>!m||inWeekIds.has(m.id)).concat(cands.filter(m=>m&&!inWeekIds.has(m.id)).sort((a,b)=>alone(a)-alone(b)).slice(0,14));
+      for(const m of cands){
+        if(m) arr[sp.i]=m.id+(own?"@"+own:""); else arr.splice(sp.i,1);
+        const nt=planCost(), ok=okDay(sp.d), sc=dayScore(sp.d);
+        if(m) arr[sp.i]=sp.e; else arr.splice(sp.i,0,sp.e);
+        const saving=total-nt; if(saving<0.5) continue;
+        if(wasOk&&!ok) continue;                  // don't break a day that was on target
+        const val=saving-Math.max(0,sc-before)*40; // trade a little macro drift for real savings
+        if(!best||val>best.val) best={sp,m,val,nt};
+      }
+    }
+    if(!best||best.val<=0.3) break;
+    const {sp,m}=best, own=entryPid(sp.e), arr=state.plan[sp.d][sp.s];
+    added.delete(sp.d+"|"+sp.s+"|"+sp.e);
+    if(m){ const ne=m.id+(own?"@"+own:""); arr[sp.i]=ne; added.add(sp.d+"|"+sp.s+"|"+ne); } else arr.splice(sp.i,1);
+    total=best.nt;
+  }
+  return total;
+}
+/* Auto-plan fitted to goals — and to the weekly budget. One profile: meals + that person's snacks. Two or more: shared
+   breakfasts, lunches and dinners everyone eats (each at their own portion), then each person's own treat/snacks. */
 function autoPlanForGoal(p){
-  const ps=profiles(), multi=ps.length>1;
-  const fx=flexFor(p), avoid=[], used=new Map(); let added=0;
+  const ps=profiles(), multi=ps.length>1, budget=budgetOf();
+  const fx=flexFor(p), avoid=[], used=new Map(), added=new Set(); let n=0;
+  const basket=budget?planBasket():null, dayBudget=budget?budget/7:0;
   const use=id=>used.set(entryMealId(id),(used.get(entryMealId(id))||0)+1);
+  const HS=householdServes();
+  const put=(dk,sl,entry)=>{ state.plan[dk][sl].push(entry); use(entry); added.add(dk+"|"+sl+"|"+entry); n++;
+    if(basket){ const m=mealById(entry); basket.add(m,entryPid(entry)?1:(scalesWithPortion(m)?HS:eaters().length)); } };
   DAYS.forEach(d=>{ state.plan[d.k].dinner.forEach(id=>avoid.push(entryMealId(id))); SLOTS.forEach(s=>state.plan[d.k][s.k].forEach(use)); });
-  DAYS.forEach(d=>{
+  DAYS.forEach((d,di)=>{
     const fixed={}; SLOTS.forEach(s=>fixed[s.k]=state.plan[d.k][s.k].slice());
     const isTreat=fx.treatDays.includes(d.k), isTk=fx.takeawayDay===d.k;
     const needMains=["breakfast","lunch","dinner"].some(s=>!fixed[s].length);
+    const leftover=budget&&di>0?(state.plan[DAYS[di-1].k].dinner.map(entryMealId)[0]||null):null;
+    const common={fixed,avoid,used,takeaway:isTk,portions:false,basket,dayBudget,leftover};
     if(!multi){
       const needs=needMains||(isTreat&&!fixed.snack.some(id=>(mealById(id)||{}).type==="treat"));
       if(!needs) return;
-      const sg=suggestDay(p,{fixed,avoid,used,treat:isTreat,takeaway:isTk,portions:false}); if(!sg) return;
-      ["breakfast","lunch","dinner"].forEach(s=>{ const it=sg.pick[s]; if(it&&!fixed[s].length){ state.plan[d.k][s].push(it.id); use(it.id); added++; if(s==="dinner") avoid.push(it.id); } });
-      sg.pick.snack.forEach(it=>{ state.plan[d.k].snack.push(it.id); use(it.id); added++; });
+      const sg=suggestDay(p,Object.assign({treat:isTreat},common)); if(!sg) return;
+      ["breakfast","lunch","dinner"].forEach(s=>{ const it=sg.pick[s]; if(it&&!fixed[s].length){ put(d.k,s,it.id); if(s==="dinner") avoid.push(it.id); } });
+      // snacks & treats are the profile's own, so extra people at the table don't get them bought too
+      sg.pick.snack.forEach(it=>put(d.k,"snack",it.id+"@"+p.id));
       return;
     }
     if(needMains){
-      const sg=suggestDay(p,{fixed,avoid,used,takeaway:isTk,portions:false,mainsOnly:true});
-      if(sg) ["breakfast","lunch","dinner"].forEach(s=>{ const it=sg.pick[s]; if(it&&!fixed[s].length){ state.plan[d.k][s].push(it.id); use(it.id); added++; if(s==="dinner") avoid.push(it.id); } });
+      const sg=suggestDay(p,Object.assign({mainsOnly:true},common));
+      if(sg) ["breakfast","lunch","dinner"].forEach(s=>{ const it=sg.pick[s]; if(it&&!fixed[s].length){ put(d.k,s,it.id); if(s==="dinner") avoid.push(it.id); } });
     }
-    ps.forEach(q=>{ added+=fillPersonal(q,d.k,used); });
+    ps.forEach(q=>{ const before=new Set(state.plan[d.k].snack); fillPersonal(q,d.k,used,basket);
+      state.plan[d.k].snack.forEach(e=>{ if(!before.has(e)&&!added.has(d.k+"|snack|"+e)){ added.add(d.k+"|snack|"+e); n++; } }); });
   });
+  let total=budget?planCost():0;
+  if(budget&&total>budget) total=repairBudget(budget,added);
   save(); renderWeek(); renderShopping();
-  if(!added){ toast("Every meal slot is already full"); return; }
+  if(!n){ toast("Every meal slot is already full"); return; }
+  const shop=weeklyShopCost(), money=budget?` · shop ~${fmtMoney(shop)} ${shop<=budget?"✓ under":"(over"} your ${fmtMoney(budget)} budget${shop<=budget?"":")"}`:` · shop ~${fmtMoney(shop)}`;
   const avg=q=>{ const ds=DAYS.map(d=>planDayMacros(d.k,q.id)).filter(m=>m.n); return ds.length?ds.reduce((s,m)=>s+m.kcal,0)/ds.length:0; };
-  if(multi) toast(`🎯 Planned shared meals + personal snacks — `+ps.map(q=>`${q.name} ~${fmtInt(avg(q))}/${fmtInt(targetsFor(q).kcal)} kcal (${fmtX(portionOf(q))} portions)`).join(" · "));
+  if(multi) toast(`🎯 Shared meals + personal snacks — `+ps.map(q=>`${q.name} ~${fmtInt(avg(q))}/${fmtInt(targetsFor(q).kcal)} kcal`).join(" · ")+money);
   else { const t=targetsFor(p), ds=DAYS.map(d=>planDayMacros(d.k,p.id)).filter(m=>m.n), avgP=ds.reduce((s,m)=>s+m.p,0)/(ds.length||1);
-    toast(`🎯 Filled ${added} slots for ${p.name} — averaging ${fmtInt(avg(p))} kcal & ${Math.round(avgP)}g protein a day (target ${fmtInt(t.kcal)} / ${t.protein}g, ${fmtX(portionOf(p))} portions)${fx.treatDays.length?", treats included":""}${fx.takeawayDay?", takeaway "+dayName(fx.takeawayDay):""}`); }
+    toast(`🎯 ${p.name}: averaging ${fmtInt(avg(p))} kcal & ${Math.round(avgP)}g protein a day (target ${fmtInt(t.kcal)} / ${t.protein}g)${money}`); }
+  if(budget&&shop>budget*1.02) setTimeout(()=>toast(`Closest fit is ${fmtMoney(shop)} — your protein target needs pricier foods. Try a higher budget, or keep a few meals you like and plan again.`),2600);
 }
 /* What one person actually eats that day: shared main meals × their portion, shared snacks ×1, and only their own personal items. */
 function planDayMacros(dk,pid){
