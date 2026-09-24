@@ -51,7 +51,7 @@ module.exports = async (req, res) => {
         value = raw;
       }
       if (!value) { res.statusCode = 400; return res.end(JSON.stringify({ error: "no-body" })); }
-      if (value.length > 300000) { res.statusCode = 413; return res.end(JSON.stringify({ error: "too-large" })); }
+      if (value.length > 900000) { res.statusCode = 413; return res.end(JSON.stringify({ error: "too-large" })); }
       await redis(["SET", key, value]);
       res.statusCode = 200;
       return res.end(JSON.stringify({ ok: true }));
