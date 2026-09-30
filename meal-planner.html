@@ -617,6 +617,13 @@ const LIBRARY = [
   {id:"b8",name:"Toast & Jam",emoji:"🍞",type:"breakfast",serves:2,ingredients:[
     {name:"Bread",qty:4,unit:"slice",cat:"Bakery"},{name:"Butter",qty:20,unit:"g",cat:"Dairy & Eggs"},
     {name:"Jam",qty:4,unit:"tbsp",cat:"Pantry"}]},
+  {id:"b9",name:"Weet-Bix & Milk",emoji:"🥣",type:"breakfast",serves:1,ingredients:[
+    {name:"Weet-Bix",qty:3,unit:"biscuit",cat:"Pantry"},{name:"Milk",qty:250,unit:"ml",cat:"Dairy & Eggs"}],
+    instr:"Crumble 3 Weet-Bix into a bowl|Pour over the cold milk and eat straight away, or let it soften for a minute if you like it mushy"},
+  {id:"b10",name:"Protein Weet-Bix",emoji:"🥣",type:"breakfast",serves:1,ingredients:[
+    {name:"Weet-Bix",qty:3,unit:"biscuit",cat:"Pantry"},{name:"Milk",qty:200,unit:"ml",cat:"Dairy & Eggs"},
+    {name:"Greek yoghurt",qty:150,unit:"g",cat:"Dairy & Eggs"}],
+    instr:"Crumble 3 Weet-Bix into a bowl|Pour over the milk|Top with a big dollop of Greek yoghurt — nearly doubles the protein"},
   // LUNCH
   {id:"l1",name:"Chicken Caesar Salad",emoji:"🥗",type:"lunch",serves:2,ingredients:[
     {name:"Chicken breast",qty:2,unit:"fillet",cat:"Meat & Seafood"},{name:"Romaine lettuce",qty:1,unit:"",cat:"Fruit & Veg"},
@@ -1222,7 +1229,7 @@ const PACKS={
   "Aubergine":[1,2.00],"Beansprouts":[250,2.50],"Peanuts":[375,2.80],"Lime":[1,2.00],"Tofu":[1,2.80],"Sweet chilli sauce":[19,2.00],"Paneer":[1,6.00],"Naan":[1,3.50],"Black beans":[1,1.00],"Chorizo":[1,7.50],"Cumin":[5,2.00],"Beef steak":[2,13.00],"Leek":[1,3.00],"Puff pastry":[1,3.80],"Sour cream":[300,3.10],
   "Dark chocolate":[100,4.00],"Tim Tams":[11,6.00],"Ice cream":[2000,4.50],"Cocoa powder":[58,7.50],"Drinking chocolate":[55,8.00],"Choc chip cookies":[16,3.50],
   "Mini ice creams":[10,4.00],"Freddo Frogs":[12,7.50],"Choc hazelnut spread":[39,6.45],"Sugar":[80,2.00],"Creamed rice":[1,1.85],"Icy poles":[24,7.20],
-  "Protein bars":[4,12.00],"Protein pudding":[1,3.10],"Jelly cups":[4,3.50],
+  "Protein bars":[4,12.00],"Protein pudding":[1,3.10],"Jelly cups":[4,3.50],"Weet-Bix":[38,5.00],
   "Beef jerky":[1,6.00],"High-protein yoghurt":[1,3.20],"Protein milk":[1,4.50],"Cheese sticks":[8,4.60]
 };
 
@@ -1286,7 +1293,8 @@ const NUTRI={
   "Tofu":[400,40,6,24],"Tortilla chips":[1000,14,120,50],"Tortilla wraps":[1360,40,230,30],
   "Mini ice creams":[165,2,15,11],"Freddo Frogs":[64,0.9,7,3.6],"Icy poles":[45,0,11,0],"Protein bars":[200,20,18,7],
   "Protein pudding":[130,15,12,2],"Jelly cups":[10,0.5,1,0],
-  "Beef jerky":[150,25,6,2],"High-protein yoghurt":[110,15,9,1.5],"Protein milk":[200,25,15,4],"Cheese sticks":[70,5,0.3,5.5]
+  "Beef jerky":[150,25,6,2],"High-protein yoghurt":[110,15,9,1.5],"Protein milk":[200,25,15,4],"Cheese sticks":[70,5,0.3,5.5],
+  "Weet-Bix":[53.5,1.85,10,0.2]   /* per biscuit (15 g) — Sanitarium: 2 biscuits = 447 kJ, 3.7 g protein */
 };
 /* Snacks that need no prep at work and survive a bag or lunchbox (new ones carry .go on the object). */
 const GRAB_AND_GO=new Set(["s1","s2","s4","s6","s8","s9","s10","s11","s12","s13","s14","s15","s16","s18"]);
@@ -1342,6 +1350,12 @@ function emptyState(){
   DAYS.forEach(d=>{plan[d.k]={breakfast:[],lunch:[],dinner:[],snack:[]};});
   return {plan,people:2,custom:[],checked:{},manual:[],favourites:{},have:{},needPantry:{},budget:150,fit:emptyFit()};
 }
+/* one-off data updates for existing users */
+function migrate(){
+  state.migrations=state.migrations||{};
+  // Jason has Weet-Bix most mornings — star it once so Auto-plan uses it; un-starring later sticks
+  if(!state.migrations.weetbix){ state.favourites=state.favourites||{}; state.favourites.b9=true; state.migrations.weetbix=1; }
+}
 function load(){
   try{
     const raw=localStorage.getItem(STORE_KEY);
@@ -1387,6 +1401,7 @@ function adoptState(data){
   DAYS.forEach(d=>{ state.plan[d.k]=Object.assign({breakfast:[],lunch:[],dinner:[],snack:[]}, state.plan[d.k]||{}); });
   state.fit=mergeFit(localFit,remoteFit);
   _sugg=null;   // cached meal suggestion may point at meals the shared copy no longer has
+  migrate();    // a copy saved by an older version may predate one-off updates
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
   renderAll();
   if(fitSig(state.fit)!==fitSig(remoteFit)) pushShared();   // we hold records the cloud doesn't yet
@@ -1608,6 +1623,8 @@ const PORTIONS={};
 /* Portion guides — one standard serve per meal, as eaten (cooked grams, piece counts, sizes). Derived from each
    recipe's ingredients ÷ serves and cross-checked, so they match the shopping list. */
 Object.assign(PORTIONS,{
+"b9":{"plate":[{"c":"Weet-Bix","n":3,"step":1,"g":45,"alt":"2 for a lighter bowl, 4 on a big training day"},{"c":"Milk","g":250,"note":"≈ 1 cup"}],"tip":"Pour the milk over just before eating if you like them crunchy."},
+"b10":{"plate":[{"c":"Weet-Bix","n":3,"step":1,"g":45,"alt":"2 for a lighter bowl, 4 on a big training day"},{"c":"Milk","g":200,"note":"≈ ¾ cup"},{"c":"Greek yoghurt","g":150,"note":"≈ ⅔ cup, a big dollop on top"}],"tip":"Milk first, yoghurt on top — about 23 g protein to start the day."},
 "b1":{"plate":[{"c":"Porridge (oats cooked in milk)","g":190,"note":"≈ ¾ cup cooked"},{"c":"Honey","g":10,"note":"≈ 1½ tsp"}],"tip":"Serve in a small bowl and drizzle the honey over just before eating; add a splash more milk if it's too thick."},
 "b2":{"plate":[{"c":"Scrambled eggs","g":110,"n":2,"step":1,"note":"2 eggs' worth, ≈ ½ cup cooked"},{"c":"Buttered toast","g":35,"n":1,"step":1,"alt":"or 1 thick slice of sourdough (≈ 50 g)"}],"tip":"Pile the eggs onto the toast while they're still soft and glossy."},
 "b3":{"plate":[{"c":"Greek yoghurt","g":150,"note":"≈ ⅔ cup"},{"c":"Granola","g":40,"note":"≈ ⅓ cup"},{"c":"Honey","g":10,"note":"≈ 1½ tsp"}],"tip":"Yoghurt on the bottom, then granola on top just before eating so it stays crunchy, then the honey."},
@@ -1841,6 +1858,7 @@ function roundQty(v,unit){
   if(unit==="g"||unit==="ml") return Math.max(1,Math.round(v));
   if(unit==="kg"||unit==="l") return Math.round(v*10)/10;
   if(unit==="tbsp"||unit==="tsp") return Math.round(v*2)/2;
+  if(unit==="biscuit"||unit==="slice"||unit==="clove"||unit==="fillet") return Math.max(1,Math.ceil(v-0.05));   // you can't buy ¾ of a Weet-Bix
   let r=Math.round(v*4)/4;
   if(Math.abs(r-Math.round(r))<0.001) r=Math.round(r);
   if(r===0 && v>0) r=Math.round(v*100)/100||0.25;
@@ -2274,7 +2292,7 @@ function renderUseItUp(){
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
-  buildSpotMeals(); load();
+  buildSpotMeals(); load(); migrate();
   document.getElementById("people").value=state.people;
   if(localStorage.getItem("bls_meal_theme")==="dark") document.documentElement.setAttribute("data-theme","dark");
   // week range label
@@ -3094,6 +3112,9 @@ function suggestDay(p,opt){
   if(!P.snack.length) P.snack=poolOf("snack");   // snacks: simple, portable ones you can take to work
   // cook once, eat twice: last night's dinner is a (cheap) lunch option
   const lo=opt.leftover?mealById(opt.leftover):null; if(lo&&!lo.takeaway) for(let i=0;i<6;i++) P.lunch.push(lo);
+  // ☆ favourites come up far more often (e.g. your usual Weet-Bix most mornings)
+  const fav=id=>!!(state.favourites||{})[id];
+  ["breakfast","lunch","dinner"].forEach(sl=>{ P[sl].filter(m=>fav(m.id)).forEach(m=>{ for(let i=0;i<5;i++) P[sl].push(m); }); });
   const treats=allMeals().filter(m=>m.type==="treat"&&mealMacros(m).kcal>0&&mealMacros(m).kcal<=fx.treatKcal);
   // takeaway night: a real place near home where this person has an order within budget; generic ideas only as a fallback
   const spotTakes=SPOT_MEALS.filter(m=>orderFor(m,p).kcal<=fx.takeawayKcal);
@@ -3132,8 +3153,9 @@ function suggestDay(p,opt){
     }
     // variety: penalise meals already used this week (leftover lunches don't count — that's the point of them). On a budget,
     // repeats are cheap and normal, so the penalty is gentler
-    let rep=0; if(used){ ["breakfast","lunch","dinner"].forEach(sl=>{ const x=pick[sl]; if(x&&!(sl==="lunch"&&lo&&x.id===lo.id)) rep+=used.get(x.id)||0; }); pick.snack.forEach(s=>rep+=(used.get(s.id)||0)*0.7); }
+    let rep=0; if(used){ ["breakfast","lunch","dinner"].forEach(sl=>{ const x=pick[sl]; if(x&&!(sl==="lunch"&&lo&&x.id===lo.id)) rep+=(used.get(x.id)||0)*(fav(x.id)?0.15:1); }); pick.snack.forEach(s=>rep+=(used.get(s.id)||0)*0.7); }
     let score=Math.abs(k-aimK)/aimK*100+Math.max(0,aimP-pr)/aimP*(basket?175:120)+rep*(basket?2.5:5);
+    ["breakfast","lunch","dinner"].forEach(sl=>{ const x=pick[sl]; if(x&&fav(x.id)&&!(fixed[sl]||[]).length) score-=8; });   // ☆ = "I actually like having this"
     let cost=0;
     if(basket){
       const list=[]; ["breakfast","lunch","dinner"].forEach(sl=>{ const x=pick[sl]; if(x){ const m=mealById(x.id); list.push([m,m.takeaway?0:HS]); } });
